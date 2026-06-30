@@ -1,5 +1,5 @@
 """
-app.py — Maïga Smash | Gestion de stock mobile
+app.py — Maïga Smash | Gestion de stock
 Lancement : streamlit run app.py
 """
 
@@ -23,165 +23,420 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-ACC = COULEUR_PRINCIPALE  # #F5A623
+# ── Palette pro ───────────────────────────────────────────────────────────────
+# On garde l'accent brand mais on assombrit tout le reste
+ACC   = COULEUR_PRINCIPALE  # #F5A623
+BG    = "#0f0f0f"
+SURF  = "#171717"
+SURF2 = "#1f1f1f"
+BDR   = "#262626"
+TXT   = "#e8e8e8"
+SUB   = "#6b6b6b"
+MUT   = "#3a3a3a"
+OK    = "#16a34a"
+WARN  = "#ca8a04"
+DNGR  = "#dc2626"
+
+# ── SVG icons ─────────────────────────────────────────────────────────────────
+ICO_BOX   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>'
+ICO_SCAN  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>'
+ICO_HIST  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+ICO_ADM   = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>'
+ICO_OUT   = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+ICO_WARN  = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
 
 st.markdown(f"""
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
 <style>
-  * {{ box-sizing: border-box; }}
-  .stApp {{ background: #161616 !important; color: #f0f0f0; font-family: 'Inter', sans-serif; }}
-  header[data-testid="stHeader"] {{ display: none; }}
-  .stDeployButton, footer {{ display: none; }}
-  section[data-testid="stSidebar"] {{ display: none; }}
-  .block-container {{ padding: 0 12px 40px !important; max-width: 480px !important; margin: auto; }}
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {{ box-sizing: border-box; }}
 
-  /* ── Topbar ── */
-  .topbar {{
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 0 10px; position: sticky; top: 0;
-    background: #161616; z-index: 100;
-  }}
-  .topbar-title {{ font-size: 1.15rem; font-weight: 900; color: {ACC}; }}
-  .topbar-right  {{ display: flex; align-items: center; gap: 8px; }}
-  .topbar-role   {{ font-size: 0.7rem; color: #666; background: #222; padding: 3px 9px; border-radius: 20px; }}
-  .topbar-logout {{
-    font-size: 0.7rem; color: #555; background: #1e1e1e;
-    border: 1px solid #2e2e2e; border-radius: 20px; padding: 3px 10px;
-    cursor: pointer; text-decoration: none;
-  }}
+.stApp {{
+  background: {BG} !important;
+  color: {TXT};
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+}}
 
-  /* ── KPI ── */
-  .kpi-row {{ display: flex; gap: 8px; margin-bottom: 8px; }}
-  .kpi {{
-    flex: 1; background: #212121; border-radius: 12px 12px 0 0;
-    padding: 12px 8px 8px; text-align: center; border: 1px solid #2e2e2e;
-    border-bottom: none;
-  }}
-  .kpi .num {{ font-size: 1.9rem; font-weight: 800; line-height: 1; }}
-  .kpi .lab {{ font-size: 0.6rem; color: #666; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }}
-  .kpi.rouge .num  {{ color: #ff4444; }}
-  .kpi.orange .num {{ color: {ACC}; }}
-  .kpi.blanc .num  {{ color: #f0f0f0; }}
+header[data-testid="stHeader"],
+.stDeployButton,
+footer,
+section[data-testid="stSidebar"] {{ display: none !important; }}
 
-  /* Bouton "tap to filter" collé sous chaque carte KPI, même largeur, coins arrondis en bas */
-  div[data-testid="column"]:has(button[key^="kpi_"]) .stButton > button {{
-    width: 100% !important; height: 22px !important;
-    border-radius: 0 0 12px 12px !important;
-    border: 1px solid #2e2e2e !important; border-top: none !important;
-    background: #1a1a1a !important; color: #444 !important;
-    font-size: 0.62rem !important; font-weight: 600 !important;
-    padding: 0 !important; min-height: unset !important; margin-top: -1px;
-  }}
-  div[data-testid="column"]:has(button[key^="kpi_"]) .stButton > button:hover {{
-    color: {ACC} !important; border-color: {ACC} !important;
-  }}
+.block-container {{
+  padding: 0 16px 60px !important;
+  max-width: 460px !important;
+  margin: 0 auto !important;
+}}
 
-  /* ── Tabs ── */
-  .stTabs [data-baseweb="tab-list"] {{
-    gap: 4px; background: #1e1e1e; border-radius: 12px;
-    padding: 4px; margin-bottom: 14px;
-  }}
-  .stTabs [data-baseweb="tab"] {{
-    background: transparent; border-radius: 9px; color: #555;
-    font-weight: 600; font-size: 0.85rem; padding: 8px 0;
-    flex: 1; justify-content: center; border: none !important;
-  }}
-  .stTabs [aria-selected="true"] {{ background: #2e2e2e !important; color: {ACC} !important; }}
-  .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] {{ display: none; }}
+/* ── Topbar ─────────────────────────────────────────────────────────────────── */
+.topbar {{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0 12px;
+  position: sticky;
+  top: 0;
+  background: {BG};
+  z-index: 100;
+  border-bottom: 1px solid {BDR};
+  margin-bottom: 16px;
+}}
+.topbar-brand {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}}
+.topbar-dot {{
+  width: 8px; height: 8px;
+  background: {ACC};
+  border-radius: 50%;
+  flex-shrink: 0;
+}}
+.topbar-name {{
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: {TXT};
+  letter-spacing: -0.3px;
+}}
+.topbar-right {{ display: flex; align-items: center; gap: 6px; }}
+.badge-role {{
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: {SUB};
+  background: {SURF};
+  border: 1px solid {BDR};
+  padding: 3px 9px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+}}
 
-  /* ── Recherche ── */
-  .stTextInput input {{
-    background: #212121 !important; border: 1px solid #2e2e2e !important;
-    border-radius: 10px !important; color: #f0f0f0 !important;
-    padding: 10px 14px !important; font-size: 0.9rem !important;
-  }}
-  .stTextInput label {{ display: none; }}
+/* ── Bouton logout ── */
+div[data-testid="column"]:has(button[key="logout"]) .stButton > button {{
+  background: {SURF} !important;
+  border: 1px solid {BDR} !important;
+  color: {SUB} !important;
+  font-size: 0.72rem !important;
+  font-weight: 500 !important;
+  padding: 4px 10px !important;
+  border-radius: 6px !important;
+  height: auto !important;
+  min-height: unset !important;
+  width: auto !important;
+  letter-spacing: 0.2px;
+}}
+div[data-testid="column"]:has(button[key="logout"]) .stButton > button:hover {{
+  border-color: {DNGR} !important;
+  color: {DNGR} !important;
+}}
 
-  /* Suggestions dropdown */
-  .suggestion-box {{
-    background: #242424; border: 1px solid #333; border-radius: 10px;
-    margin-top: -8px; margin-bottom: 12px; overflow: hidden;
-  }}
-  .suggestion-item {{
-    padding: 10px 14px; font-size: 0.85rem; cursor: pointer;
-    border-bottom: 1px solid #2e2e2e; display: flex;
-    justify-content: space-between; align-items: center;
-  }}
-  .suggestion-item:last-child {{ border-bottom: none; }}
-  .suggestion-cat {{ font-size: 0.65rem; color: #555; }}
+/* ── Tabs ───────────────────────────────────────────────────────────────────── */
+.stTabs [data-baseweb="tab-list"] {{
+  gap: 0;
+  background: transparent;
+  border-bottom: 1px solid {BDR};
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 20px;
+}}
+.stTabs [data-baseweb="tab"] {{
+  background: transparent;
+  border-radius: 0;
+  color: {SUB};
+  font-weight: 500;
+  font-size: 0.82rem;
+  padding: 10px 16px;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  flex: unset;
+  letter-spacing: 0.1px;
+}}
+.stTabs [aria-selected="true"] {{
+  background: transparent !important;
+  color: {TXT} !important;
+  border-bottom: 2px solid {ACC} !important;
+}}
+.stTabs [data-baseweb="tab-highlight"],
+.stTabs [data-baseweb="tab-border"] {{ display: none; }}
 
-  /* ── Filtre catégorie (selectbox) ── */
-  div[data-testid="stSelectbox"] {{ margin-bottom: 12px; }}
-  div[data-testid="stSelectbox"] > div > div {{
-    background: #212121 !important; border: 1px solid #2e2e2e !important;
-    border-radius: 10px !important; color: #f0f0f0 !important;
-  }}
+/* ── KPI cards ──────────────────────────────────────────────────────────────── */
+.kpi-grid {{
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}}
+.kpi-card {{
+  background: {SURF};
+  border: 1px solid {BDR};
+  border-radius: 10px;
+  padding: 14px 10px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  position: relative;
+  overflow: hidden;
+}}
+.kpi-card::before {{
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--kpi-color);
+  opacity: 0;
+  transition: opacity 0.15s;
+}}
+.kpi-card.active::before {{ opacity: 1; }}
+.kpi-card.active {{ border-color: var(--kpi-color); background: color-mix(in srgb, var(--kpi-color) 6%, {SURF}); }}
+.kpi-num {{
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--kpi-color);
+  letter-spacing: -1px;
+}}
+.kpi-label {{
+  font-size: 0.58rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.9px;
+  color: {SUB};
+  margin-top: 5px;
+}}
+/* Boutons KPI invisibles par-dessus les cartes */
+.kpi-btn-row div[data-testid="column"] .stButton > button {{
+  background: transparent !important;
+  border: none !important;
+  color: transparent !important;
+  width: 100% !important;
+  min-height: unset !important;
+  height: 80px !important;
+  padding: 0 !important;
+  margin-top: -84px;
+  position: relative;
+  z-index: 10;
+}}
 
-  /* ── Label catégorie section ── */
-  .cat-label {{
-    font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1.2px; color: #444;
-    padding: 10px 0 5px; border-bottom: 1px solid #222; margin-bottom: 6px;
-  }}
+/* ── Inputs ─────────────────────────────────────────────────────────────────── */
+.stTextInput input, .stNumberInput input {{
+  background: {SURF} !important;
+  border: 1px solid {BDR} !important;
+  border-radius: 8px !important;
+  color: {TXT} !important;
+  padding: 9px 13px !important;
+  font-size: 0.88rem !important;
+  font-family: 'Inter', sans-serif !important;
+}}
+.stTextInput input:focus, .stNumberInput input:focus {{
+  border-color: {ACC} !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, {ACC} 12%, transparent) !important;
+}}
+.stTextInput label,
+.stNumberInput label {{ display: none; }}
 
-  /* ── Ligne produit ── */
-  .prod-nom  {{ font-size: 0.88rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-  .prod-sub  {{ font-size: 0.67rem; color: #555; margin-top: 1px; }}
-  .prod-seuil {{ font-size: 0.62rem; color: #383838; margin-top: 4px; }}
+/* ── Selectbox ──────────────────────────────────────────────────────────────── */
+div[data-testid="stSelectbox"] > div > div {{
+  background: {SURF} !important;
+  border: 1px solid {BDR} !important;
+  border-radius: 8px !important;
+  color: {TXT} !important;
+  font-size: 0.85rem !important;
+}}
+.stSelectbox label {{ font-size: 0.72rem !important; color: {SUB} !important; font-weight: 500 !important; }}
 
-  .prod-qty {{ font-size: 1.55rem; font-weight: 800; line-height: 1; text-align: center; }}
-  .prod-qty.ok     {{ color: #22cc55; }}
-  .prod-qty.warn   {{ color: {ACC}; }}
-  .prod-qty.danger {{ color: #ff4444; }}
-  .prod-unite {{ font-size: 0.63rem; color: #555; text-align: center; margin-top: 1px; }}
+/* ── Suggestions ────────────────────────────────────────────────────────────── */
+.sugg-box {{
+  background: {SURF2};
+  border: 1px solid {BDR};
+  border-radius: 8px;
+  margin-top: -4px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+}}
+.sugg-item {{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 13px;
+  border-bottom: 1px solid {BDR};
+  font-size: 0.83rem;
+}}
+.sugg-item:last-child {{ border-bottom: none; }}
+.sugg-name {{ font-weight: 500; color: {TXT}; }}
+.sugg-cat  {{ font-size: 0.63rem; color: {SUB}; margin-top: 1px; }}
+.sugg-qty  {{ font-size: 0.95rem; font-weight: 700; }}
 
-  /* Boutons +/- (page stock) */
-  .stButton > button {{
-    background: #252525 !important; color: #bbb !important;
-    border: 1px solid #333 !important; border-radius: 8px !important;
-    font-size: 1.2rem !important; font-weight: 700 !important;
-    width: 36px !important; height: 36px !important;
-    padding: 0 !important; line-height: 1 !important; min-height: unset !important;
-  }}
-  .stButton > button:hover {{ border-color: {ACC} !important; color: {ACC} !important; }}
+/* ── Section catégorie ──────────────────────────────────────────────────────── */
+.section-label {{
+  font-size: 0.63rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: {MUT};
+  padding: 14px 0 7px;
+}}
 
-  /* Boutons +/- larges sur la carte produit (2 lignes) */
-  div[data-testid="column"]:has(button[key^="m_"]) .stButton > button,
-  div[data-testid="column"]:has(button[key^="p_"]) .stButton > button {{
-    width: 100% !important; height: 44px !important; font-size: 1.4rem !important;
-  }}
+/* ── Ligne produit ──────────────────────────────────────────────────────────── */
+.prod-name {{ font-size: 0.87rem; font-weight: 600; color: {TXT}; letter-spacing: -0.1px; }}
+.prod-meta {{ font-size: 0.65rem; color: {SUB}; margin-top: 2px; }}
+.prod-qty  {{
+  font-size: 1.5rem; font-weight: 800; line-height: 1;
+  text-align: center; letter-spacing: -1px;
+}}
+.prod-unit {{ font-size: 0.6rem; color: {SUB}; text-align: center; margin-top: 2px; font-weight: 500; }}
+.prod-ok   {{ color: {OK}; }}
+.prod-warn {{ color: {WARN}; }}
+.prod-dngr {{ color: {DNGR}; }}
+.prod-sep  {{ border: none; border-top: 1px solid {SURF2}; margin: 6px 0 2px; }}
 
-  .prod-sep {{ border: none; border-top: 1px solid #1e1e1e; margin: 2px 0 4px; }}
+/* ── Boutons +/− ────────────────────────────────────────────────────────────── */
+.stButton > button {{
+  background: {SURF} !important;
+  color: {SUB} !important;
+  border: 1px solid {BDR} !important;
+  border-radius: 7px !important;
+  font-size: 1.15rem !important;
+  font-weight: 400 !important;
+  padding: 0 !important;
+  min-height: unset !important;
+  line-height: 1 !important;
+  transition: all 0.12s;
+}}
+.stButton > button:hover {{
+  background: {SURF2} !important;
+  border-color: {SUB} !important;
+  color: {TXT} !important;
+}}
+div[data-testid="column"]:has(button[key^="m_"]) .stButton > button,
+div[data-testid="column"]:has(button[key^="p_"]) .stButton > button {{
+  width: 100% !important;
+  height: 40px !important;
+  font-size: 1.25rem !important;
+}}
 
-  /* ── Scanner ── */
-  .scan-area {{
-    background: #1e1e1e; border: 2px dashed #2e2e2e;
-    border-radius: 14px; padding: 32px 20px; text-align: center; margin: 8px 0 18px;
-  }}
-  .scan-icon {{ font-size: 3rem; margin-bottom: 8px; }}
-  .scan-hint {{ font-size: 0.78rem; color: #555; line-height: 1.6; }}
-  .box-ok {{ background: #1a2e1a; border: 1px solid #22aa44; border-radius: 10px; padding: 14px; margin: 10px 0; }}
-  .box-ko {{ background: #2e1a1a; border: 1px solid #ff4444; border-radius: 10px; padding: 14px; margin: 10px 0; }}
-  .box-ok strong, .box-ko strong {{ font-size: 0.92rem; }}
-  .box-ok p, .box-ko p {{ font-size: 0.77rem; color: #aaa; margin-top: 4px; }}
+/* ── Badge filtre actif ──────────────────────────────────────────────────────── */
+.filter-badge {{
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: {SUB};
+  background: {SURF};
+  border: 1px solid {BDR};
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}}
 
-  /* ── Historique ── */
-  .histo-item {{
-    background: #212121; border-radius: 10px;
-    padding: 11px 14px; margin-bottom: 7px;
-    border-left: 3px solid #333; font-size: 0.82rem;
-  }}
-  .histo-item.plus  {{ border-color: #22cc55; }}
-  .histo-item.moins {{ border-color: #ff4444; }}
-  .histo-meta {{ color: #555; font-size: 0.67rem; margin-top: 3px; }}
+/* ── Connexion ──────────────────────────────────────────────────────────────── */
+.login-wrap {{
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}}
+.login-logo {{
+  width: 52px; height: 52px;
+  background: {ACC};
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.6rem;
+  margin: 0 auto 20px;
+  box-shadow: 0 8px 24px color-mix(in srgb, {ACC} 30%, transparent);
+}}
+.login-title {{
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: {TXT};
+  text-align: center;
+  letter-spacing: -0.5px;
+}}
+.login-sub {{
+  font-size: 0.8rem;
+  color: {SUB};
+  text-align: center;
+  margin-top: 4px;
+  margin-bottom: 32px;
+}}
+
+/* ── Bouton primaire ────────────────────────────────────────────────────────── */
+div[data-testid="column"]:has(button[key="login_btn"]) .stButton > button,
+button[key="login_btn"],
+div:has(> button[key="login_btn"]) > button {{
+  background: {ACC} !important;
+  color: #0f0f0f !important;
+  font-weight: 700 !important;
+  font-size: 0.9rem !important;
+  height: 44px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  width: 100% !important;
+  letter-spacing: 0.1px;
+}}
+div:has(> button[key="login_btn"]) > button:hover {{
+  background: #e09520 !important;
+}}
+
+/* ── Scanner ────────────────────────────────────────────────────────────────── */
+.scan-wrap {{
+  border: 1px solid {BDR};
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}}
+.box-ok {{
+  background: color-mix(in srgb, {OK} 8%, {SURF});
+  border: 1px solid color-mix(in srgb, {OK} 30%, transparent);
+  border-radius: 8px; padding: 14px; margin: 12px 0;
+}}
+.box-ok strong {{ font-size: 0.9rem; font-weight: 600; color: {TXT}; }}
+.box-ok p {{ font-size: 0.77rem; color: {SUB}; margin-top: 4px; }}
+.box-ko {{
+  background: color-mix(in srgb, {DNGR} 8%, {SURF});
+  border: 1px solid color-mix(in srgb, {DNGR} 30%, transparent);
+  border-radius: 8px; padding: 14px; margin: 12px 0;
+}}
+.box-ko strong {{ font-size: 0.9rem; font-weight: 600; color: {TXT}; }}
+.box-ko p {{ font-size: 0.77rem; color: {SUB}; margin-top: 4px; }}
+
+/* ── Historique ─────────────────────────────────────────────────────────────── */
+.histo-item {{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-bottom: 1px solid {SURF2};
+  font-size: 0.83rem;
+}}
+.histo-left {{ flex: 1; min-width: 0; }}
+.histo-name {{ font-weight: 500; color: {TXT}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+.histo-meta {{ font-size: 0.63rem; color: {SUB}; margin-top: 2px; }}
+.histo-right {{ text-align: right; flex-shrink: 0; padding-left: 12px; }}
+.histo-var  {{ font-size: 0.88rem; font-weight: 700; }}
+.histo-flow {{ font-size: 0.65rem; color: {SUB}; margin-top: 1px; }}
+
+/* ── Streamlit overrides ────────────────────────────────────────────────────── */
+.stRadio > div {{ gap: 0 !important; }}
+.stRadio [data-testid="stMarkdownContainer"] p {{ font-size: 0.82rem; }}
+div[data-testid="stNumberInput"] {{ margin-top: 8px; }}
+.stAlert {{ border-radius: 8px !important; font-size: 0.82rem !important; }}
+.element-container {{ margin-bottom: 0 !important; }}
 </style>
 """, unsafe_allow_html=True)
 
 # ── Session state ──────────────────────────────────────────────────────────────
-defaults = {
+for k, v in {
     "connecte": False, "role": None,
     "restaurant": RESTAURANTS[0], "kpi_filter": None
-}
-for k, v in defaults.items():
+}.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
@@ -190,15 +445,17 @@ for k, v in defaults.items():
 # ═══════════════════════════════════════════════════════════════════════════════
 def page_connexion():
     st.markdown(f"""
-    <div style="text-align:center; padding: 52px 0 36px;">
-      <div style="font-size:3.5rem;">🍔</div>
-      <div style="font-size:1.6rem; font-weight:900; color:{ACC}; margin-top:8px;">{NOM_RESTO}</div>
-      <div style="font-size:0.8rem; color:#555; margin-top:4px;">Gestion des stocks</div>
+    <div style="text-align:center; padding: 60px 0 32px;">
+      <div class="login-logo">🍔</div>
+      <div class="login-title">{NOM_RESTO}</div>
+      <div class="login-sub">Gestion des stocks</div>
     </div>
     """, unsafe_allow_html=True)
-    role = st.selectbox("", ["Employé", "Patron"], label_visibility="collapsed")
-    mdp  = st.text_input("", type="password", placeholder="Mot de passe", label_visibility="collapsed")
-    if st.button("Se connecter", use_container_width=True):
+
+    role = st.selectbox("Rôle", ["Employé", "Patron"])
+    mdp  = st.text_input("Mot de passe", type="password", placeholder="••••••••")
+
+    if st.button("Se connecter", key="login_btn", use_container_width=True):
         role_key = "employe" if role == "Employé" else "patron"
         if verifier_mdp(mdp, role_key):
             st.session_state.connecte = True
@@ -211,111 +468,127 @@ def page_connexion():
 # PAGE STOCK
 # ═══════════════════════════════════════════════════════════════════════════════
 def page_stock():
-    resto = st.session_state.restaurant
-    df    = get_stocks(resto)
+    resto     = st.session_state.restaurant
+    df        = get_stocks(resto)
+    kpi_filter = st.session_state.kpi_filter
 
     n_total   = len(df)
     n_alertes = int((df["quantite"] <= df["seuil_alerte"]).sum())
     n_rupture = int((df["quantite"] == 0).sum())
 
-    # KPI cliquables (filtre rupture / alerte)
-    kpi_filter = st.session_state.kpi_filter
-    bg_r = f"background:{('#ff444422')};border-color:#ff4444;" if kpi_filter == "rupture" else ""
-    bg_a = f"background:{ACC}22;border-color:{ACC};" if kpi_filter == "alerte" else ""
+    # ── KPI cards (HTML) ──
+    def kpi_active(k): return "active" if kpi_filter == k else ""
 
-    col_r, col_a, col_t = st.columns(3)
-    with col_r:
-        st.markdown(f'<div class="kpi rouge" style="{bg_r}"><div class="num">{n_rupture}</div><div class="lab">Ruptures</div></div>', unsafe_allow_html=True)
-        if st.button("voir" if kpi_filter != "rupture" else "✓ actif", key="kpi_rupture_btn", use_container_width=True):
+    st.markdown(f"""
+    <div class="kpi-grid">
+      <div class="kpi-card {kpi_active('rupture')}" style="--kpi-color:{DNGR}">
+        <div class="kpi-num">{n_rupture}</div>
+        <div class="kpi-label">Ruptures</div>
+      </div>
+      <div class="kpi-card {kpi_active('alerte')}" style="--kpi-color:{WARN}">
+        <div class="kpi-num">{n_alertes}</div>
+        <div class="kpi-label">Alertes</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:{SUB}">
+        <div class="kpi-num" style="color:{TXT}">{n_total}</div>
+        <div class="kpi-label">Produits</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Boutons invisibles par-dessus les KPI
+    st.markdown('<div class="kpi-btn-row">', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("r", key="kpi_rupture_btn", use_container_width=True):
             st.session_state.kpi_filter = None if kpi_filter == "rupture" else "rupture"
             st.rerun()
-    with col_a:
-        st.markdown(f'<div class="kpi orange" style="{bg_a}"><div class="num">{n_alertes}</div><div class="lab">Alertes</div></div>', unsafe_allow_html=True)
-        if st.button("voir" if kpi_filter != "alerte" else "✓ actif", key="kpi_alerte_btn", use_container_width=True):
+    with c2:
+        if st.button("a", key="kpi_alerte_btn", use_container_width=True):
             st.session_state.kpi_filter = None if kpi_filter == "alerte" else "alerte"
             st.rerun()
-    with col_t:
-        st.markdown(f'<div class="kpi blanc"><div class="num">{n_total}</div><div class="lab">Produits</div></div>', unsafe_allow_html=True)
-        if st.button("tout", key="kpi_total_btn", use_container_width=True):
+    with c3:
+        if st.button("t", key="kpi_total_btn", use_container_width=True):
             st.session_state.kpi_filter = None
             st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     if kpi_filter:
-        label = "🚨 Ruptures uniquement" if kpi_filter == "rupture" else "⚠️ Alertes stock bas uniquement"
-        st.caption(f"{label} — touchez à nouveau le KPI pour annuler")
+        label = "Ruptures uniquement" if kpi_filter == "rupture" else "Alertes stock bas"
+        icone = ICO_WARN
+        st.markdown(f'<div class="filter-badge">{icone}&nbsp;{label} — touchez à nouveau pour annuler</div>', unsafe_allow_html=True)
 
-    # Recherche avec suggestions
-    recherche = st.text_input("", placeholder="🔍 Rechercher un produit...", key="search", label_visibility="collapsed")
+    # ── Recherche + suggestions ──
+    recherche = st.text_input("", placeholder="Rechercher un produit...", key="search", label_visibility="collapsed")
 
     if recherche and len(recherche) >= 2:
         suggestions = df[df["produit"].str.contains(recherche, case=False, na=False)].head(6)
         if not suggestions.empty:
-            html_sugg = '<div class="suggestion-box">'
+            html = '<div class="sugg-box">'
             for _, s in suggestions.iterrows():
-                qte = int(s["quantite"])
+                qte   = int(s["quantite"])
                 seuil = int(s["seuil_alerte"])
-                couleur = "#ff4444" if qte == 0 else (ACC if qte <= seuil else "#22cc55")
-                html_sugg += f"""
-                <div class="suggestion-item">
-                  <div>
-                    <span>{s['produit']}</span><br>
-                    <span class="suggestion-cat">{s['categorie']}</span>
-                  </div>
-                  <span style="color:{couleur}; font-weight:700; font-size:1rem;">{qte} <span style="font-size:0.65rem;color:#555;">{s['unite']}</span></span>
+                cls   = "prod-dngr" if qte == 0 else ("prod-warn" if qte <= seuil else "prod-ok")
+                html += f"""
+                <div class="sugg-item">
+                  <div><div class="sugg-name">{s['produit']}</div>
+                       <div class="sugg-cat">{s['categorie']}</div></div>
+                  <span class="sugg-qty {cls}">{qte} <span style="font-size:0.62rem;color:{SUB};font-weight:400">{s['unite']}</span></span>
                 </div>"""
-            html_sugg += '</div>'
-            st.markdown(html_sugg, unsafe_allow_html=True)
+            html += '</div>'
+            st.markdown(html, unsafe_allow_html=True)
 
-    # Filtre catégorie — menu déroulant simple
+    # ── Filtre catégorie ──
     categories = ["Toutes les catégories"] + sorted(df["categorie"].unique().tolist())
-    cat_active = st.selectbox("Filtrer par catégorie", categories, key="cat_select", label_visibility="collapsed")
+    cat_active = st.selectbox("Catégorie", categories, key="cat_select")
 
-    # Filtrage
-    df_filtre = df.copy()
+    # ── Filtrage ──
+    df_f = df.copy()
     if recherche:
-        df_filtre = df_filtre[df_filtre["produit"].str.contains(recherche, case=False, na=False)]
+        df_f = df_f[df_f["produit"].str.contains(recherche, case=False, na=False)]
     if cat_active != "Toutes les catégories":
-        df_filtre = df_filtre[df_filtre["categorie"] == cat_active]
+        df_f = df_f[df_f["categorie"] == cat_active]
     if kpi_filter == "rupture":
-        df_filtre = df_filtre[df_filtre["quantite"] == 0]
+        df_f = df_f[df_f["quantite"] == 0]
     elif kpi_filter == "alerte":
-        df_filtre = df_filtre[(df_filtre["quantite"] > 0) & (df_filtre["quantite"] <= df_filtre["seuil_alerte"])]
+        df_f = df_f[(df_f["quantite"] > 0) & (df_f["quantite"] <= df_f["seuil_alerte"])]
 
-    # Produits par catégorie
-    for cat in df_filtre["categorie"].unique():
-        bloc = df_filtre[df_filtre["categorie"] == cat]
-        st.markdown(f'<div class="cat-label">{cat}</div>', unsafe_allow_html=True)
+    if df_f.empty:
+        st.markdown(f'<div style="text-align:center;color:{SUB};padding:32px 0;font-size:0.85rem;">Aucun produit trouvé</div>', unsafe_allow_html=True)
+        return
+
+    # ── Liste produits ──
+    for cat in df_f["categorie"].unique():
+        bloc = df_f[df_f["categorie"] == cat]
+        st.markdown(f'<div class="section-label">{cat}</div>', unsafe_allow_html=True)
 
         for _, row in bloc.iterrows():
             qte     = int(row["quantite"])
             seuil   = int(row["seuil_alerte"])
             unite   = row["unite"]
             produit = row["produit"]
-            qty_cls = "danger" if qte == 0 else ("warn" if qte <= seuil else "ok")
+            cls     = "prod-dngr" if qte == 0 else ("prod-warn" if qte <= seuil else "prod-ok")
 
-            # Ligne 1 : nom + fournisseur + seuil
             st.markdown(f"""
-            <div style="padding: 8px 0 2px;">
-              <div class="prod-nom">{produit}</div>
-              <div class="prod-sub">{row['fournisseur']} · Seuil : {seuil} {unite}</div>
+            <div style="padding: 8px 0 4px;">
+              <div class="prod-name">{produit}</div>
+              <div class="prod-meta">{row['fournisseur']} · seuil {seuil} {unite}</div>
             </div>
             """, unsafe_allow_html=True)
 
-            # Ligne 2 : − | quantité | +
-            col_moins, col_qty, col_plus = st.columns([1, 2, 1])
-            with col_moins:
+            c_m, c_q, c_p = st.columns([1, 2, 1])
+            with c_m:
                 if st.button("−", key=f"m_{produit}", use_container_width=True):
                     if qte > 0:
                         update_stock(resto, produit, qte, qte - 1)
                         st.rerun()
-            with col_qty:
+            with c_q:
                 st.markdown(f"""
-                <div style="text-align:center;">
-                  <div class="prod-qty {qty_cls}">{qte}</div>
-                  <div class="prod-unite">{unite}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with col_plus:
+                <div style="text-align:center; padding:4px 0;">
+                  <div class="prod-qty {cls}">{qte}</div>
+                  <div class="prod-unit">{unite}</div>
+                </div>""", unsafe_allow_html=True)
+            with c_p:
                 if st.button("+", key=f"p_{produit}", use_container_width=True):
                     update_stock(resto, produit, qte, qte + 1)
                     st.rerun()
@@ -328,63 +601,55 @@ def page_stock():
 def page_scanner():
     resto = st.session_state.restaurant
 
-    mode = st.radio("Mode", ["📷 Caméra", "⌨️ Saisie manuelle"], horizontal=True, label_visibility="collapsed")
-
+    mode = st.radio("", ["Caméra", "Saisie manuelle"], horizontal=True, label_visibility="collapsed")
     code = None
 
-    if mode == "📷 Caméra":
-        st.caption("Autorisez l'accès à la caméra si demandé, puis visez le code-barres.")
-
+    if mode == "Caméra":
+        st.caption("Autorisez l'accès à la caméra, puis visez le code-barres.")
         scan_html = f"""
-        <div id="reader" style="width:100%; border-radius:12px; overflow:hidden;"></div>
-        <div id="scan-result" style="margin-top:10px; padding:10px; border-radius:8px;
-             background:#1a2e1a; color:#22cc55; font-size:0.85rem; text-align:center; display:none;">
+        <div id="reader" style="width:100%;border-radius:10px;overflow:hidden;"></div>
+        <div id="scan-result" style="margin-top:10px;padding:10px 14px;border-radius:8px;
+             background:color-mix(in srgb,#16a34a 10%,#171717);
+             color:#4ade80;font-size:0.82rem;display:none;font-family:Inter,sans-serif;">
         </div>
         <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
         <script>
           function startScanner() {{
-            const resultBox = document.getElementById('scan-result');
-            const html5QrCode = new Html5Qrcode("reader");
-            const config = {{ fps: 10, qrbox: {{ width: 250, height: 150 }} }};
-
-            function onScanSuccess(decodedText) {{
-              resultBox.style.display = "block";
-              resultBox.innerText = "✅ Code détecté : " + decodedText + " — mise à jour...";
-              html5QrCode.stop().then(() => {{
-                const topUrl = window.parent.location.href.split('?')[0];
-                window.parent.location.href = topUrl + "?scanned_code=" + encodeURIComponent(decodedText);
-              }});
-            }}
-
-            html5QrCode.start(
+            const box = document.getElementById('scan-result');
+            const scanner = new Html5Qrcode("reader");
+            scanner.start(
               {{ facingMode: "environment" }},
-              config,
-              onScanSuccess
+              {{ fps: 10, qrbox: {{ width: 240, height: 140 }} }},
+              function(code) {{
+                box.style.display = "block";
+                box.innerText = "Code détecté : " + code;
+                scanner.stop().then(() => {{
+                  const base = window.parent.location.href.split('?')[0];
+                  window.parent.location.href = base + "?scanned_code=" + encodeURIComponent(code);
+                }});
+              }}
             ).catch(err => {{
-              resultBox.style.display = "block";
-              resultBox.style.background = "#2e1a1a";
-              resultBox.style.color = "#ff4444";
-              resultBox.innerText = "❌ Caméra inaccessible : " + err;
+              box.style.display = "block";
+              box.style.background = "color-mix(in srgb,#dc2626 10%,#171717)";
+              box.style.color = "#f87171";
+              box.innerText = "Caméra inaccessible : " + err;
             }});
           }}
           startScanner();
-        </script>
-        """
-        components.html(scan_html, height=320)
+        </script>"""
+        components.html(scan_html, height=300)
 
-        # Récupération du code scanné via query params
         query_code = st.query_params.get("scanned_code")
         if query_code:
             code = query_code
             st.query_params.clear()
 
-        st.divider()
-        st.caption("Le scan ne fonctionne pas ? Utilisez la saisie manuelle ci-dessous.")
-        code_manuel = st.text_input("", placeholder="Ou tapez le code ici...", key="barcode_fallback", label_visibility="collapsed")
-        if code_manuel:
-            code = code_manuel
+        st.markdown(f'<div style="height:8px"></div>', unsafe_allow_html=True)
+        fallback = st.text_input("", placeholder="Ou entrez le code manuellement...", key="barcode_fallback", label_visibility="collapsed")
+        if fallback:
+            code = fallback
     else:
-        code = st.text_input("", placeholder="Entrez le code-barres", key="barcode_manual", label_visibility="collapsed")
+        code = st.text_input("", placeholder="Code-barres...", key="barcode_manual", label_visibility="collapsed")
 
     if code and len(str(code).strip()) > 3:
         code = str(code).strip()
@@ -397,36 +662,33 @@ def page_scanner():
                 qte   = int(ligne.iloc[0]["quantite"])
                 unite = ligne.iloc[0]["unite"]
                 seuil = int(ligne.iloc[0]["seuil_alerte"])
-                qty_cls = "danger" if qte == 0 else ("warn" if qte <= seuil else "ok")
+                cls   = "prod-dngr" if qte == 0 else ("prod-warn" if qte <= seuil else "prod-ok")
 
                 st.markdown(f"""
                 <div class="box-ok">
-                  <strong>✅ {produit_nom}</strong>
-                  <p>Stock actuel : <span class="prod-qty {qty_cls}" style="font-size:1.1rem;display:inline;">{qte}</span> {unite}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                  <strong>{produit_nom}</strong>
+                  <p>Stock actuel : <span class="{cls}" style="font-weight:700">{qte} {unite}</span></p>
+                </div>""", unsafe_allow_html=True)
 
                 qte_retrait = st.number_input("Quantité à retirer", min_value=1, max_value=max(1, qte), value=1, step=1)
-                if st.button(f"✅ Retirer {qte_retrait} {unite}", use_container_width=True):
-                    nouvelle_qte = max(0, qte - qte_retrait)
-                    update_stock(resto, produit_nom, qte, nouvelle_qte)
-                    st.success(f"✅ {produit_nom} : {qte} → {nouvelle_qte} {unite}")
-                    if nouvelle_qte <= seuil:
-                        st.warning(f"⚠️ Stock bas sur {produit_nom} !")
+                if st.button(f"Confirmer le retrait — {qte_retrait} {unite}", use_container_width=True):
+                    nv = max(0, qte - qte_retrait)
+                    update_stock(resto, produit_nom, qte, nv)
+                    st.success(f"{produit_nom} : {qte} → {nv} {unite}")
+                    if nv <= seuil:
+                        st.warning(f"Stock bas sur {produit_nom}")
                     st.rerun()
         else:
             st.markdown(f"""
             <div class="box-ko">
-              <strong>❓ Code inconnu : {code}</strong>
+              <strong>Code inconnu : {code}</strong>
               <p>Associez ce code à un produit pour les prochains scans</p>
-            </div>
-            """, unsafe_allow_html=True)
+            </div>""", unsafe_allow_html=True)
             df = get_stocks(resto)
-            produits_liste = sorted(df["produit"].tolist())
-            choix = st.selectbox("Associer à :", produits_liste)
-            if st.button("💾 Enregistrer l'association", use_container_width=True):
+            choix = st.selectbox("Associer à", sorted(df["produit"].tolist()))
+            if st.button("Enregistrer l'association", use_container_width=True):
                 enregistrer_code_barres(choix, code)
-                st.success(f"✅ Code {code} associé à « {choix} »")
+                st.success(f"Code {code} associé à {choix}")
                 st.rerun()
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -435,7 +697,7 @@ def page_scanner():
 def page_historique():
     df = get_historique(30)
     if df.empty:
-        st.info("Aucun mouvement sur les 30 derniers jours.")
+        st.markdown(f'<div style="text-align:center;color:{SUB};padding:40px 0;font-size:0.85rem;">Aucun mouvement sur 30 jours</div>', unsafe_allow_html=True)
         return
 
     df["variation"] = df["nouvelle_qte"] - df["ancienne_qte"]
@@ -443,27 +705,42 @@ def page_historique():
     n_moins = int((df["variation"] < 0).sum())
 
     st.markdown(f"""
-    <div class="kpi-row">
-      <div class="kpi blanc"><div class="num">{len(df)}</div><div class="lab">Mouvements</div></div>
-      <div class="kpi rouge"><div class="num">↓{n_moins}</div><div class="lab">Retraits</div></div>
-      <div class="kpi orange"><div class="num">↑{n_plus}</div><div class="lab">Ajouts</div></div>
+    <div class="kpi-grid">
+      <div class="kpi-card" style="--kpi-color:{SUB}">
+        <div class="kpi-num" style="color:{TXT}">{len(df)}</div>
+        <div class="kpi-label">Mouvements</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:{DNGR}">
+        <div class="kpi-num">{n_moins}</div>
+        <div class="kpi-label">Retraits</div>
+      </div>
+      <div class="kpi-card" style="--kpi-color:{OK}">
+        <div class="kpi-num">{n_plus}</div>
+        <div class="kpi-label">Ajouts</div>
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown(f'<div style="height:4px"></div>', unsafe_allow_html=True)
+
+    html = ""
     for _, row in df.head(60).iterrows():
-        var = int(row["variation"])
-        cls = "plus" if var > 0 else "moins"
-        signe = f"+{var}" if var > 0 else str(var)
-        couleur = "#22cc55" if var > 0 else "#ff4444"
-        date_str = str(row["date"])[:16]
-        st.markdown(f"""
-        <div class="histo-item {cls}">
-          <strong>{row['produit']}</strong>
-          &nbsp;<span style="color:{couleur}; font-weight:700;">{signe}</span>
-          &nbsp;<span style="color:#555;">({row['ancienne_qte']} → {row['nouvelle_qte']})</span>
-          <div class="histo-meta">{date_str} · {row['restaurant']}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        var    = int(row["variation"])
+        signe  = f"+{var}" if var > 0 else str(var)
+        couleur = OK if var > 0 else DNGR
+        date_s = str(row["date"])[:16]
+        html += f"""
+        <div class="histo-item">
+          <div class="histo-left">
+            <div class="histo-name">{row['produit']}</div>
+            <div class="histo-meta">{date_s} · {row['restaurant']}</div>
+          </div>
+          <div class="histo-right">
+            <div class="histo-var" style="color:{couleur}">{signe}</div>
+            <div class="histo-flow">{row['ancienne_qte']} → {row['nouvelle_qte']}</div>
+          </div>
+        </div>"""
+    st.markdown(html, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAGE ADMIN
@@ -473,48 +750,43 @@ def page_admin():
     st.dataframe(df, use_container_width=True, hide_index=True)
     csv = df.to_csv(index=False).encode("utf-8")
     st.download_button(
-        "⬇️ Exporter CSV", data=csv,
+        "Exporter CSV", data=csv,
         file_name=f"stock_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
         mime="text/csv", use_container_width=True
     )
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# ROUTING PRINCIPAL
+# ROUTING
 # ═══════════════════════════════════════════════════════════════════════════════
 if not st.session_state.connecte:
     page_connexion()
 else:
-    role_label = "👑 Patron" if st.session_state.role == "patron" else "👤 Employé"
-
-    # Topbar avec déconnexion toujours visible
-    col_title, col_right = st.columns([3, 2])
-    with col_title:
-        st.markdown(f'<div class="topbar-title" style="padding-top:14px;">🍔 {NOM_RESTO}</div>', unsafe_allow_html=True)
+    # Topbar
+    col_brand, col_right = st.columns([3, 2])
+    with col_brand:
+        st.markdown(f"""
+        <div class="topbar">
+          <div class="topbar-brand">
+            <div class="topbar-dot"></div>
+            <div class="topbar-name">{NOM_RESTO}</div>
+          </div>
+        </div>""", unsafe_allow_html=True)
     with col_right:
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.markdown(f'<div style="padding-top:14px;"><span class="topbar-role">{role_label}</span></div>', unsafe_allow_html=True)
-        with c2:
-            if st.button("🚪 Quitter", key="logout"):
-                st.session_state.connecte = False
-                st.session_state.role = None
-                st.rerun()
+        role_label = "Patron" if st.session_state.role == "patron" else "Employé"
+        st.markdown(f'<div style="padding-top:16px;display:flex;justify-content:flex-end;gap:6px;"><span class="badge-role">{role_label}</span></div>', unsafe_allow_html=True)
+        if st.button("Quitter", key="logout"):
+            st.session_state.connecte = False
+            st.session_state.role = None
+            st.rerun()
 
-    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
-
-    # Onglets en haut
-    tab_labels = ["📦 Stock", "📷 Scanner", "📊 Historique"]
+    # Tabs
+    tab_labels = ["Stock", "Scanner", "Historique"]
     if st.session_state.role == "patron":
-        tab_labels.append("⚙️ Admin")
-
+        tab_labels.append("Admin")
     tabs = st.tabs(tab_labels)
 
-    with tabs[0]:
-        page_stock()
-    with tabs[1]:
-        page_scanner()
-    with tabs[2]:
-        page_historique()
+    with tabs[0]: page_stock()
+    with tabs[1]: page_scanner()
+    with tabs[2]: page_historique()
     if st.session_state.role == "patron" and len(tabs) == 4:
-        with tabs[3]:
-            page_admin()
+        with tabs[3]: page_admin()
