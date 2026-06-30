@@ -4,6 +4,7 @@ Lancement : streamlit run app.py
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 from datetime import datetime
 
@@ -49,16 +50,23 @@ st.markdown(f"""
   }}
 
   /* ── KPI ── */
-  .kpi-row {{ display: flex; gap: 8px; margin-bottom: 14px; }}
+  .kpi-row {{ display: flex; gap: 8px; margin-bottom: 0px; }}
   .kpi {{
     flex: 1; background: #212121; border-radius: 12px;
     padding: 12px 8px; text-align: center; border: 1px solid #2e2e2e;
+    margin-bottom: -46px; position: relative; z-index: 1;
   }}
   .kpi .num {{ font-size: 1.9rem; font-weight: 800; line-height: 1; }}
   .kpi .lab {{ font-size: 0.6rem; color: #666; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }}
   .kpi.rouge .num  {{ color: #ff4444; }}
   .kpi.orange .num {{ color: {ACC}; }}
   .kpi.blanc .num  {{ color: #f0f0f0; }}
+  /* Bouton transparent par-dessus la carte KPI pour la rendre cliquable */
+  div[data-testid="column"]:has(button[key^="kpi_"]) .stButton > button {{
+    background: transparent !important; border: none !important;
+    color: transparent !important; width: 100% !important; height: 78px !important;
+    position: relative; z-index: 2; margin-top: 0;
+  }}
 
   /* ── Tabs ── */
   .stTabs [data-baseweb="tab-list"] {{
@@ -119,7 +127,7 @@ st.markdown(f"""
   .prod-qty.danger {{ color: #ff4444; }}
   .prod-unite {{ font-size: 0.63rem; color: #555; text-align: center; margin-top: 1px; }}
 
-  /* Boutons +/- */
+  /* Boutons +/- (page stock) */
   .stButton > button {{
     background: #252525 !important; color: #bbb !important;
     border: 1px solid #333 !important; border-radius: 8px !important;
@@ -128,6 +136,12 @@ st.markdown(f"""
     padding: 0 !important; line-height: 1 !important; min-height: unset !important;
   }}
   .stButton > button:hover {{ border-color: {ACC} !important; color: {ACC} !important; }}
+
+  /* Boutons +/- larges sur la carte produit (2 lignes) */
+  div[data-testid="column"]:has(button[key^="m_"]) .stButton > button,
+  div[data-testid="column"]:has(button[key^="p_"]) .stButton > button {{
+    width: 100% !important; height: 44px !important; font-size: 1.4rem !important;
+  }}
 
   .prod-sep {{ border: none; border-top: 1px solid #1e1e1e; margin: 2px 0 4px; }}
 
@@ -158,7 +172,7 @@ st.markdown(f"""
 # ── Session state ──────────────────────────────────────────────────────────────
 defaults = {
     "connecte": False, "role": None,
-    "restaurant": RESTAURANTS[0]
+    "restaurant": RESTAURANTS[0], "kpi_filter": None
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -197,14 +211,31 @@ def page_stock():
     n_alertes = int((df["quantite"] <= df["seuil_alerte"]).sum())
     n_rupture = int((df["quantite"] == 0).sum())
 
-    # KPI
-    st.markdown(f"""
-    <div class="kpi-row">
-      <div class="kpi rouge"><div class="num">{n_rupture}</div><div class="lab">Ruptures</div></div>
-      <div class="kpi orange"><div class="num">{n_alertes}</div><div class="lab">Alertes</div></div>
-      <div class="kpi blanc"><div class="num">{n_total}</div><div class="lab">Produits</div></div>
-    </div>
-    """, unsafe_allow_html=True)
+    # KPI cliquables (filtre rupture / alerte)
+    kpi_filter = st.session_state.kpi_filter
+    bg_r = f"background:{('#ff444422')};border-color:#ff4444;" if kpi_filter == "rupture" else ""
+    bg_a = f"background:{ACC}22;border-color:{ACC};" if kpi_filter == "alerte" else ""
+
+    col_r, col_a, col_t = st.columns(3)
+    with col_r:
+        st.markdown(f'<div class="kpi rouge" style="{bg_r}"><div class="num">{n_rupture}</div><div class="lab">Ruptures</div></div>', unsafe_allow_html=True)
+        if st.button("Filtrer ruptures", key="kpi_rupture_btn", use_container_width=True):
+            st.session_state.kpi_filter = None if kpi_filter == "rupture" else "rupture"
+            st.rerun()
+    with col_a:
+        st.markdown(f'<div class="kpi orange" style="{bg_a}"><div class="num">{n_alertes}</div><div class="lab">Alertes</div></div>', unsafe_allow_html=True)
+        if st.button("Filtrer alertes", key="kpi_alerte_btn", use_container_width=True):
+            st.session_state.kpi_filter = None if kpi_filter == "alerte" else "alerte"
+            st.rerun()
+    with col_t:
+        st.markdown(f'<div class="kpi blanc"><div class="num">{n_total}</div><div class="lab">Produits</div></div>', unsafe_allow_html=True)
+        if st.button("Tout afficher", key="kpi_total_btn", use_container_width=True):
+            st.session_state.kpi_filter = None
+            st.rerun()
+
+    if kpi_filter:
+        label = "🚨 Ruptures uniquement" if kpi_filter == "rupture" else "⚠️ Alertes stock bas uniquement"
+        st.caption(f"{label} — touchez à nouveau le KPI pour annuler")
 
     # Recherche avec suggestions
     recherche = st.text_input("", placeholder="🔍 Rechercher un produit...", key="search", label_visibility="collapsed")
@@ -238,6 +269,10 @@ def page_stock():
         df_filtre = df_filtre[df_filtre["produit"].str.contains(recherche, case=False, na=False)]
     if cat_active != "Toutes les catégories":
         df_filtre = df_filtre[df_filtre["categorie"] == cat_active]
+    if kpi_filter == "rupture":
+        df_filtre = df_filtre[df_filtre["quantite"] == 0]
+    elif kpi_filter == "alerte":
+        df_filtre = df_filtre[(df_filtre["quantite"] > 0) & (df_filtre["quantite"] <= df_filtre["seuil_alerte"])]
 
     # Produits par catégorie
     for cat in df_filtre["categorie"].unique():
@@ -251,39 +286,32 @@ def page_stock():
             produit = row["produit"]
             qty_cls = "danger" if qte == 0 else ("warn" if qte <= seuil else "ok")
 
-            col_info, col_moins, col_qty, col_plus = st.columns([5, 1, 1.5, 1])
+            # Ligne 1 : nom + fournisseur + seuil
+            st.markdown(f"""
+            <div style="padding: 8px 0 2px;">
+              <div class="prod-nom">{produit}</div>
+              <div class="prod-sub">{row['fournisseur']} · Seuil : {seuil} {unite}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-            with col_info:
-                st.markdown(f"""
-                <div style="padding: 7px 0 2px;">
-                  <div class="prod-nom">{produit}</div>
-                  <div class="prod-sub">{row['fournisseur']}</div>
-                  <div class="prod-seuil">Seuil : {seuil} {unite}</div>
-                </div>
-                """, unsafe_allow_html=True)
-
+            # Ligne 2 : − | quantité | +
+            col_moins, col_qty, col_plus = st.columns([1, 2, 1])
             with col_moins:
-                st.markdown("<div style='padding-top:9px'>", unsafe_allow_html=True)
-                if st.button("−", key=f"m_{produit}"):
+                if st.button("−", key=f"m_{produit}", use_container_width=True):
                     if qte > 0:
                         update_stock(resto, produit, qte, qte - 1)
                         st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
-
             with col_qty:
                 st.markdown(f"""
-                <div style="text-align:center; padding-top:5px;">
+                <div style="text-align:center;">
                   <div class="prod-qty {qty_cls}">{qte}</div>
                   <div class="prod-unite">{unite}</div>
                 </div>
                 """, unsafe_allow_html=True)
-
             with col_plus:
-                st.markdown("<div style='padding-top:9px'>", unsafe_allow_html=True)
-                if st.button("+", key=f"p_{produit}"):
+                if st.button("+", key=f"p_{produit}", use_container_width=True):
                     update_stock(resto, produit, qte, qte + 1)
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
 
             st.markdown("<hr class='prod-sep'>", unsafe_allow_html=True)
 
@@ -293,17 +321,66 @@ def page_stock():
 def page_scanner():
     resto = st.session_state.restaurant
 
-    st.markdown("""
-    <div class="scan-area">
-      <div class="scan-icon">📷</div>
-      <div class="scan-hint">Scannez un emballage vide avec votre lecteur<br>ou saisissez le code manuellement</div>
-    </div>
-    """, unsafe_allow_html=True)
+    mode = st.radio("Mode", ["📷 Caméra", "⌨️ Saisie manuelle"], horizontal=True, label_visibility="collapsed")
 
-    code = st.text_input("", placeholder="Code-barres...", key="barcode", label_visibility="collapsed")
+    code = None
 
-    if code and len(code.strip()) > 3:
-        code = code.strip()
+    if mode == "📷 Caméra":
+        st.caption("Autorisez l'accès à la caméra si demandé, puis visez le code-barres.")
+
+        scan_html = f"""
+        <div id="reader" style="width:100%; border-radius:12px; overflow:hidden;"></div>
+        <div id="scan-result" style="margin-top:10px; padding:10px; border-radius:8px;
+             background:#1a2e1a; color:#22cc55; font-size:0.85rem; text-align:center; display:none;">
+        </div>
+        <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+        <script>
+          function startScanner() {{
+            const resultBox = document.getElementById('scan-result');
+            const html5QrCode = new Html5Qrcode("reader");
+            const config = {{ fps: 10, qrbox: {{ width: 250, height: 150 }} }};
+
+            function onScanSuccess(decodedText) {{
+              resultBox.style.display = "block";
+              resultBox.innerText = "✅ Code détecté : " + decodedText + " — mise à jour...";
+              html5QrCode.stop().then(() => {{
+                const topUrl = window.parent.location.href.split('?')[0];
+                window.parent.location.href = topUrl + "?scanned_code=" + encodeURIComponent(decodedText);
+              }});
+            }}
+
+            html5QrCode.start(
+              {{ facingMode: "environment" }},
+              config,
+              onScanSuccess
+            ).catch(err => {{
+              resultBox.style.display = "block";
+              resultBox.style.background = "#2e1a1a";
+              resultBox.style.color = "#ff4444";
+              resultBox.innerText = "❌ Caméra inaccessible : " + err;
+            }});
+          }}
+          startScanner();
+        </script>
+        """
+        components.html(scan_html, height=320)
+
+        # Récupération du code scanné via query params
+        query_code = st.query_params.get("scanned_code")
+        if query_code:
+            code = query_code
+            st.query_params.clear()
+
+        st.divider()
+        st.caption("Le scan ne fonctionne pas ? Utilisez la saisie manuelle ci-dessous.")
+        code_manuel = st.text_input("", placeholder="Ou tapez le code ici...", key="barcode_fallback", label_visibility="collapsed")
+        if code_manuel:
+            code = code_manuel
+    else:
+        code = st.text_input("", placeholder="Entrez le code-barres", key="barcode_manual", label_visibility="collapsed")
+
+    if code and len(str(code).strip()) > 3:
+        code = str(code).strip()
         produit_nom = get_produit_by_barcode(code)
         df = get_stocks(resto)
 
