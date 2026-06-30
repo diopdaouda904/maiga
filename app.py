@@ -50,22 +50,29 @@ st.markdown(f"""
   }}
 
   /* ── KPI ── */
-  .kpi-row {{ display: flex; gap: 8px; margin-bottom: 0px; }}
+  .kpi-row {{ display: flex; gap: 8px; margin-bottom: 8px; }}
   .kpi {{
-    flex: 1; background: #212121; border-radius: 12px;
-    padding: 12px 8px; text-align: center; border: 1px solid #2e2e2e;
-    margin-bottom: -46px; position: relative; z-index: 1;
+    flex: 1; background: #212121; border-radius: 12px 12px 0 0;
+    padding: 12px 8px 8px; text-align: center; border: 1px solid #2e2e2e;
+    border-bottom: none;
   }}
   .kpi .num {{ font-size: 1.9rem; font-weight: 800; line-height: 1; }}
   .kpi .lab {{ font-size: 0.6rem; color: #666; text-transform: uppercase; letter-spacing: 0.8px; margin-top: 4px; }}
   .kpi.rouge .num  {{ color: #ff4444; }}
   .kpi.orange .num {{ color: {ACC}; }}
   .kpi.blanc .num  {{ color: #f0f0f0; }}
-  /* Bouton transparent par-dessus la carte KPI pour la rendre cliquable */
+
+  /* Bouton "tap to filter" collé sous chaque carte KPI, même largeur, coins arrondis en bas */
   div[data-testid="column"]:has(button[key^="kpi_"]) .stButton > button {{
-    background: transparent !important; border: none !important;
-    color: transparent !important; width: 100% !important; height: 78px !important;
-    position: relative; z-index: 2; margin-top: 0;
+    width: 100% !important; height: 22px !important;
+    border-radius: 0 0 12px 12px !important;
+    border: 1px solid #2e2e2e !important; border-top: none !important;
+    background: #1a1a1a !important; color: #444 !important;
+    font-size: 0.62rem !important; font-weight: 600 !important;
+    padding: 0 !important; min-height: unset !important; margin-top: -1px;
+  }}
+  div[data-testid="column"]:has(button[key^="kpi_"]) .stButton > button:hover {{
+    color: {ACC} !important; border-color: {ACC} !important;
   }}
 
   /* ── Tabs ── */
@@ -219,17 +226,17 @@ def page_stock():
     col_r, col_a, col_t = st.columns(3)
     with col_r:
         st.markdown(f'<div class="kpi rouge" style="{bg_r}"><div class="num">{n_rupture}</div><div class="lab">Ruptures</div></div>', unsafe_allow_html=True)
-        if st.button("Filtrer ruptures", key="kpi_rupture_btn", use_container_width=True):
+        if st.button("voir" if kpi_filter != "rupture" else "✓ actif", key="kpi_rupture_btn", use_container_width=True):
             st.session_state.kpi_filter = None if kpi_filter == "rupture" else "rupture"
             st.rerun()
     with col_a:
         st.markdown(f'<div class="kpi orange" style="{bg_a}"><div class="num">{n_alertes}</div><div class="lab">Alertes</div></div>', unsafe_allow_html=True)
-        if st.button("Filtrer alertes", key="kpi_alerte_btn", use_container_width=True):
+        if st.button("voir" if kpi_filter != "alerte" else "✓ actif", key="kpi_alerte_btn", use_container_width=True):
             st.session_state.kpi_filter = None if kpi_filter == "alerte" else "alerte"
             st.rerun()
     with col_t:
         st.markdown(f'<div class="kpi blanc"><div class="num">{n_total}</div><div class="lab">Produits</div></div>', unsafe_allow_html=True)
-        if st.button("Tout afficher", key="kpi_total_btn", use_container_width=True):
+        if st.button("tout", key="kpi_total_btn", use_container_width=True):
             st.session_state.kpi_filter = None
             st.rerun()
 
