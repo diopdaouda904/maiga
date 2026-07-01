@@ -73,19 +73,18 @@ cookies = CookieController()
 
 # ── Palette pro ───────────────────────────────────────────────────────────────
 # Accent piloté depuis config.py (source unique de la marque) + neutres resserrés
-ACC   = "#E8962E"  # or/ambre chaud — le dégradé signature du logo
-ACC2  = "#F4B860"  # variante claire de l'accent (hover, highlights)
-INK   = "#1C1712"  # noir chaud du logo, utilisé pour texte fort et badges
-BG    = "#FBF7F2"  # fond crème très clair — lumineux, appétissant
-SURF  = "#FFFFFF"
-SURF2 = "#F3ECE1"
-BDR   = "#E7DDCC"
-TXT   = "#241E17"
-SUB   = "#8A7F6F"
-MUT   = "#B7AB98"
-OK    = "#2E9E5B"
-WARN  = "#D9722C"  # orange brûlé — distinct de l'accent doré
-DNGR  = "#D6483B"
+ACC   = COULEUR_PRINCIPALE
+ACC2  = "#E0954A"  # variante claire de l'accent (hover, highlights)
+BG    = "#0A0A0B"
+SURF  = "#141415"
+SURF2 = "#1B1B1D"
+BDR   = "#262628"
+TXT   = "#EDEDEC"
+SUB   = "#8A8A8E"
+MUT   = "#4A4A4D"
+OK    = "#3AA66B"
+WARN  = "#C2872E"
+DNGR  = "#C84B3C"
 
 # Rayons resserrés (look outil pro plutôt que app ludique)
 R_SM  = "5px"
@@ -154,7 +153,7 @@ section[data-testid="stSidebar"] {{ display: none !important; }}
   display: flex; align-items: center; justify-content: center;
   font-size: 0.68rem;
   font-weight: 700;
-  color: {INK};
+  color: {BG};
   font-family: 'IBM Plex Mono', monospace;
   flex-shrink: 0;
 }}
@@ -253,10 +252,7 @@ div[data-testid="column"]:has(button[key="logout"]) .stButton > button:hover {{
   transition: opacity 0.15s;
 }}
 .kpi-card.active::before {{ opacity: 1; }}
-.kpi-card.active {{
-  border-color: var(--kpi-color);
-  box-shadow: 0 0 0 1px var(--kpi-color), 0 0 16px -2px var(--kpi-color);
-}}
+.kpi-card.active {{ border-color: var(--kpi-color); }}
 .kpi-num {{
   font-family: 'IBM Plex Mono', monospace;
   font-variant-numeric: tabular-nums;
@@ -341,14 +337,11 @@ div[data-testid="stSelectbox"] > div > div {{
 /* ── Section catégorie ──────────────────────────────────────────────────────── */
 .section-label {{
   font-size: 0.63rem;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: {SUB};
+  color: {MUT};
   padding: 14px 0 7px;
-  border-left: 2px solid {ACC};
-  padding-left: 8px;
-  margin-left: -1px;
 }}
 
 /* ── Ligne produit ──────────────────────────────────────────────────────────── */
@@ -425,7 +418,7 @@ div[data-testid="column"]:has(button[key^="p_"]) .stButton > button {{
   font-size: 1.05rem;
   font-weight: 700;
   font-family: 'IBM Plex Mono', monospace;
-  color: {INK};
+  color: {BG};
   margin: 0 auto 22px;
 }}
 .login-title {{
@@ -450,7 +443,7 @@ div[data-testid="column"]:has(button[key="login_btn"]) .stButton > button,
 button[key="login_btn"],
 div:has(> button[key="login_btn"]) > button {{
   background: {ACC} !important;
-  color: {INK} !important;
+  color: #0A0A0B !important;
   font-weight: 700 !important;
   font-size: 0.88rem !important;
   height: 42px !important;
@@ -539,7 +532,7 @@ div[data-testid="column"]:has(button[key="toggle_add"]) .stButton > button,
 button[key="save_new_produit"],
 div:has(> button[key="save_new_produit"]) > button {{
   background: {ACC} !important;
-  color: {INK} !important;
+  color: #0A0A0B !important;
   border: none !important;
   font-weight: 700 !important;
 }}
