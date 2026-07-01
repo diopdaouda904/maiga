@@ -536,34 +536,18 @@ div:has(> button[key="save_new_produit"]) > button {{
   font-weight: 700 !important;
 }}
 
-/* ── Bouton "Saisir" (mode saisie directe) discret sous le chiffre ── */
-div[data-testid="column"]:has(button[key^="editqte_"]) .stButton > button {{
-  background: transparent !important;
-  border: 1px solid {BDR} !important;
-  color: {SUB} !important;
-  font-size: 0.65rem !important;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  height: 26px !important;
-  margin-top: 4px;
+/* ── Champ saisie de quantité inline (gros, mono, aligné avec les boutons +/−) ── */
+div[data-testid="column"]:has(div[data-testid="stNumberInput"] input[aria-label^="Quantité "]) input {{
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  height: 42px !important;
+  padding: 4px 8px !important;
 }}
-div[data-testid="column"]:has(button[key^="editqte_"]) .stButton > button:hover {{
-  border-color: {ACC} !important;
-  color: {ACC} !important;
-}}
-/* ── Boutons Valider (✓) / Annuler (✕) en mode saisie ── */
-div[data-testid="column"]:has(button[key^="validqte_"]) .stButton > button {{
-  background: {ACC} !important;
-  border: none !important;
-  color: #0A0A0B !important;
-  font-weight: 700 !important;
-  height: 40px !important;
-}}
-div[data-testid="column"]:has(button[key^="annulqte_"]) .stButton > button {{
-  background: {SURF} !important;
-  border: 1px solid {BDR} !important;
-  height: 40px !important;
-}}
+/* Cache les mini-boutons ▲▼ natifs du number_input, place au clavier tactile */
+div[data-testid="stNumberInput"] button {{ display: none !important; }}
 
 /* ── Streamlit overrides ────────────────────────────────────────────────────── */
 .stRadio > div {{ gap: 0 !important; }}
@@ -586,15 +570,28 @@ for k, v in {
     if k not in st.session_state:
         st.session_state[k] = v
 
-# ── Auto-reconnexion via cookie (une seule fois par session) ──
-if not st.session_state.connecte and not st.session_state.cookie_checked:
-    st.session_state.cookie_checked = True
-    token = cookies.get(COOKIE_NAME)
-    if token:
-        role = _read_token(token)
-        if role:
-            st.session_state.connecte = True
-            st.session_state.role = role
+# ── Auto-reconnexion via cookie ──
+# Le composant streamlit-cookies-controller lit les cookies du navigateur de
+# manière asynchrone : au tout premier rendu, cookies.getAll() retourne None
+# le temps que le JS finisse. Il faut donc attendre que ce soit "prêt" avant
+# de conclure qu'aucune session persistante n'existe.
+if not st.session_state.connecte:
+    all_cookies = cookies.getAll()
+    if all_cookies is None:
+        # Composant pas encore initialisé, on laisse un tick et on ressaie
+        # (limité à quelques tentatives pour ne pas boucler indéfiniment)
+        if st.session_state.get("cookie_wait_count", 0) < 5:
+            st.session_state.cookie_wait_count = st.session_state.get("cookie_wait_count", 0) + 1
+            time.sleep(0.15)
+            st.rerun()
+    else:
+        token = all_cookies.get(COOKIE_NAME)
+        if token:
+            role = _read_token(token)
+            if role:
+                st.session_state.connecte = True
+                st.session_state.role = role
+                st.rerun()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONNEXION
@@ -746,55 +743,38 @@ def page_stock():
             unite   = row["unite"]
             produit = row["produit"]
             cls     = "prod-dngr" if qte == 0 else ("prod-warn" if qte <= seuil else "prod-ok")
-            is_editing_qte = st.session_state.edit_qte_produit == produit
 
             st.markdown(f"""
             <div style="padding: 8px 0 4px;">
               <div class="prod-name">{produit}</div>
-              <div class="prod-meta">{row['fournisseur']} · seuil {seuil} {unite}</div>
+              <div class="prod-meta">{row['fournisseur']} · seuil {seuil} {unite} · <span class="{cls}">{qte} {unite}</span></div>
             </div>
             """, unsafe_allow_html=True)
 
-            if is_editing_qte:
-                # Mode saisie directe (grosses livraisons, inventaire physique)
-                st.markdown(f'<div style="font-size:0.68rem;color:{SUB};margin-top:4px;text-transform:uppercase;letter-spacing:0.4px;">Nouvelle quantité en {unite}</div>', unsafe_allow_html=True)
-                ci, cv, ca = st.columns([3, 1, 1])
-                with ci:
-                    nouvelle = st.number_input("", min_value=0, value=qte, step=1,
-                                                key=f"newqte_{produit}", label_visibility="collapsed")
-                with cv:
-                    if st.button("✓", key=f"validqte_{produit}", use_container_width=True):
-                        n = int(nouvelle)
-                        if n != qte:
-                            _bump_qte(resto, produit, qte, n)
-                        st.session_state.edit_qte_produit = None
+            # Ligne unique : [ champ saisie ] [ − ] [ + ]
+            c_saisie, c_m, c_p = st.columns([3, 1, 1])
+            with c_saisie:
+                # Clé qui varie avec la quantité de la BDD : Streamlit ré-initialise
+                # le champ à la vraie valeur quand elle change (après +/− ou depuis
+                # un autre appareil). L'utilisateur peut librement écrire par-dessus.
+                nouvelle = st.number_input(
+                    f"Quantité {produit}",
+                    min_value=0, value=qte, step=1,
+                    key=f"qte_{produit}_{qte}",
+                    label_visibility="collapsed",
+                )
+                if int(nouvelle) != qte:
+                    _bump_qte(resto, produit, qte, int(nouvelle))
+                    st.rerun()
+            with c_m:
+                if st.button("−", key=f"m_{produit}", use_container_width=True):
+                    if qte > 0:
+                        _bump_qte(resto, produit, qte, qte - 1)
                         st.rerun()
-                with ca:
-                    if st.button("✕", key=f"annulqte_{produit}", use_container_width=True):
-                        st.session_state.edit_qte_produit = None
-                        st.rerun()
-            else:
-                # Mode affichage + boutons rapides
-                c_m, c_q, c_p = st.columns([1, 2, 1])
-                with c_m:
-                    if st.button("−", key=f"m_{produit}", use_container_width=True):
-                        if qte > 0:
-                            _bump_qte(resto, produit, qte, qte - 1)
-                            st.rerun()
-                with c_q:
-                    st.markdown(f"""
-                    <div style="text-align:center; padding:4px 0;">
-                      <div class="prod-qty {cls}">{qte}</div>
-                      <div class="prod-unit">{unite}</div>
-                    </div>""", unsafe_allow_html=True)
-                    # Petit bouton "saisir directement" sous le chiffre
-                    if st.button("Saisir", key=f"editqte_{produit}", use_container_width=True):
-                        st.session_state.edit_qte_produit = produit
-                        st.rerun()
-                with c_p:
-                    if st.button("+", key=f"p_{produit}", use_container_width=True):
-                        _bump_qte(resto, produit, qte, qte + 1)
-                        st.rerun()
+            with c_p:
+                if st.button("+", key=f"p_{produit}", use_container_width=True):
+                    _bump_qte(resto, produit, qte, qte + 1)
+                    st.rerun()
 
             st.markdown("<hr class='prod-sep'>", unsafe_allow_html=True)
 
