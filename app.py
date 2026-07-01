@@ -10,7 +10,7 @@ import threading
 import hmac
 import hashlib
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from streamlit_cookies_controller import CookieController
 
 from config import NOM_RESTO, COULEUR_PRINCIPALE, verifier_mdp
@@ -573,25 +573,20 @@ for k, v in {
 # ── Auto-reconnexion via cookie ──
 # Le composant streamlit-cookies-controller lit les cookies du navigateur de
 # manière asynchrone : au tout premier rendu, cookies.getAll() retourne None
-# le temps que le JS finisse. Il faut donc attendre que ce soit "prêt" avant
-# de conclure qu'aucune session persistante n'existe.
+# le temps que le JS réponde. Un composant Streamlit personnalisé déclenche
+# automatiquement un nouveau rerun dès que sa vraie valeur arrive du navigateur ;
+# st.stop() suffit donc à "attendre" sans boucle manuelle ni sleep().
 if not st.session_state.connecte:
     all_cookies = cookies.getAll()
     if all_cookies is None:
-        # Composant pas encore initialisé, on laisse un tick et on ressaie
-        # (limité à quelques tentatives pour ne pas boucler indéfiniment)
-        if st.session_state.get("cookie_wait_count", 0) < 5:
-            st.session_state.cookie_wait_count = st.session_state.get("cookie_wait_count", 0) + 1
-            time.sleep(0.15)
+        st.stop()
+    token = all_cookies.get(COOKIE_NAME)
+    if token:
+        role = _read_token(token)
+        if role:
+            st.session_state.connecte = True
+            st.session_state.role = role
             st.rerun()
-    else:
-        token = all_cookies.get(COOKIE_NAME)
-        if token:
-            role = _read_token(token)
-            if role:
-                st.session_state.connecte = True
-                st.session_state.role = role
-                st.rerun()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONNEXION
@@ -616,7 +611,9 @@ def page_connexion():
             st.session_state.role = role_key
             if rester:
                 cookies.set(COOKIE_NAME, _make_token(role_key),
-                            max_age=COOKIE_MAX_AGE, secure=True, same_site="lax")
+                            max_age=COOKIE_MAX_AGE,
+                            expires=datetime.utcnow() + timedelta(seconds=COOKIE_MAX_AGE),
+                            secure=True, same_site="lax")
             st.rerun()
         else:
             st.error("Mot de passe incorrect")
