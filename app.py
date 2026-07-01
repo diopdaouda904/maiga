@@ -11,7 +11,9 @@ from datetime import datetime
 from config import NOM_RESTO, COULEUR_PRINCIPALE, verifier_mdp
 from database import (
     init_db, get_stocks, get_historique, update_stock,
-    get_produit_by_barcode, enregistrer_code_barres, RESTAURANTS
+    get_produit_by_barcode, enregistrer_code_barres, RESTAURANTS,
+    get_all_produits, get_categories, add_produit, update_produit,
+    delete_produit, produit_existe
 )
 
 init_db()
@@ -448,6 +450,47 @@ div:has(> button[key="login_btn"]) > button:hover {{
 .histo-var  {{ font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 0.86rem; font-weight: 600; }}
 .histo-flow {{ font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 0.65rem; color: {SUB}; margin-top: 1px; }}
 
+/* ── Gestion produits ───────────────────────────────────────────────────────── */
+.pm-header {{
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}}
+.pm-count {{ font-size: 0.72rem; color: {SUB}; }}
+.pm-card {{
+  background: {SURF};
+  border: 1px solid {BDR};
+  border-radius: {R_MD};
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}}
+.pm-name {{ font-size: 0.88rem; font-weight: 600; color: {TXT}; }}
+.pm-meta {{ font-size: 0.66rem; color: {SUB}; margin-top: 2px; }}
+.pm-empty {{
+  text-align:center; color:{SUB}; padding:32px 0; font-size:0.85rem;
+}}
+/* Boutons crayon / poubelle compacts, même largeur, cote à cote */
+div[data-testid="column"]:has(button[key^="edit_"]) .stButton > button,
+div[data-testid="column"]:has(button[key^="del_"]) .stButton > button,
+div[data-testid="column"]:has(button[key^="delconfirm_"]) .stButton > button,
+div[data-testid="column"]:has(button[key^="delcancel_"]) .stButton > button {{
+  width: 100% !important;
+  height: 34px !important;
+  font-size: 0.72rem !important;
+}}
+div[data-testid="column"]:has(button[key^="delconfirm_"]) .stButton > button {{
+  border-color: {DNGR} !important;
+  color: {DNGR} !important;
+}}
+/* Bouton "+ Nouveau produit" pleine largeur, accent */
+div[data-testid="column"]:has(button[key="toggle_add"]) .stButton > button,
+button[key="save_new_produit"],
+div:has(> button[key="save_new_produit"]) > button {{
+  background: {ACC} !important;
+  color: #0A0A0B !important;
+  border: none !important;
+  font-weight: 700 !important;
+}}
+
 /* ── Streamlit overrides ────────────────────────────────────────────────────── */
 .stRadio > div {{ gap: 0 !important; }}
 .stRadio [data-testid="stMarkdownContainer"] p {{ font-size: 0.82rem; }}
@@ -460,7 +503,8 @@ div[data-testid="stNumberInput"] {{ margin-top: 8px; }}
 # ── Session state ──────────────────────────────────────────────────────────────
 for k, v in {
     "connecte": False, "role": None,
-    "restaurant": RESTAURANTS[0], "kpi_filter": None
+    "restaurant": RESTAURANTS[0], "kpi_filter": None,
+    "pm_show_add": False, "pm_editing": None, "pm_confirm_delete": None,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -767,6 +811,147 @@ def page_historique():
     st.markdown(html, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PAGE PRODUITS (catalogue en libre-service, sans passer par Supabase)
+# ═══════════════════════════════════════════════════════════════════════════════
+UNITES = ["kg", "g", "L", "mL", "unité", "pièce", "boîte", "sachet", "carton"]
+
+def _form_produit(prefix, defaults=None):
+    """Formulaire d'ajout/modif, retourne un dict si validé, sinon None."""
+    d = defaults or {}
+    cats = get_categories()
+    cat_options = cats + ["+ Nouvelle catégorie"]
+
+    nom = st.text_input("Nom du produit", value=d.get("nom", ""), key=f"{prefix}_nom",
+                         placeholder="Ex : Pain burger brioché")
+
+    if cats:
+        idx = cat_options.index(d["categorie"]) if d.get("categorie") in cats else len(cat_options) - 1
+        cat_choice = st.selectbox("Catégorie", cat_options, index=idx, key=f"{prefix}_cat_select")
+        if cat_choice == "+ Nouvelle catégorie":
+            categorie = st.text_input("Nom de la nouvelle catégorie", key=f"{prefix}_cat_new",
+                                       placeholder="Ex : Pains & buns")
+        else:
+            categorie = cat_choice
+    else:
+        categorie = st.text_input("Catégorie", value=d.get("categorie", ""), key=f"{prefix}_cat_new2",
+                                   placeholder="Ex : Pains & buns")
+
+    fournisseur = st.text_input("Fournisseur", value=d.get("fournisseur", ""), key=f"{prefix}_four",
+                                 placeholder="Ex : Metro")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        unite_idx = UNITES.index(d["unite"]) if d.get("unite") in UNITES else 0
+        unite = st.selectbox("Unité", UNITES, index=unite_idx, key=f"{prefix}_unite")
+    with c2:
+        seuil = st.number_input("Seuil d'alerte", min_value=0, step=1,
+                                 value=int(d.get("seuil_alerte", 5)), key=f"{prefix}_seuil")
+
+    qte_init = None
+    if defaults is None:  # uniquement à la création
+        qte_init = st.number_input("Quantité de départ", min_value=0, step=1, value=0, key=f"{prefix}_qte")
+
+    return dict(nom=nom.strip(), categorie=categorie.strip(), fournisseur=fournisseur.strip(),
+                unite=unite, seuil_alerte=int(seuil), quantite_initiale=int(qte_init) if qte_init is not None else None)
+
+def page_produits():
+    df = get_all_produits()
+    n = len(df)
+
+    st.markdown(f"""
+    <div class="pm-header">
+      <div class="section-label" style="padding:0;">Catalogue</div>
+      <div class="pm-count">{n} produit{"s" if n != 1 else ""}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Ajout ──
+    label_add = "− Annuler" if st.session_state.pm_show_add else "+ Nouveau produit"
+    if st.button(label_add, key="toggle_add", use_container_width=True):
+        st.session_state.pm_show_add = not st.session_state.pm_show_add
+        st.rerun()
+
+    if st.session_state.pm_show_add:
+        with st.container(border=True):
+            data = _form_produit("new")
+            if st.button("Enregistrer le produit", key="save_new_produit", use_container_width=True):
+                if not data["nom"] or not data["categorie"]:
+                    st.error("Le nom et la catégorie sont obligatoires.")
+                elif produit_existe(data["nom"]):
+                    st.error(f"« {data['nom']} » existe déjà.")
+                else:
+                    add_produit(data["nom"], data["categorie"], data["fournisseur"],
+                                data["unite"], data["seuil_alerte"], data["quantite_initiale"])
+                    st.success(f"« {data['nom']} » ajouté.")
+                    st.session_state.pm_show_add = False
+                    st.rerun()
+
+    st.markdown('<div style="height:8px"></div>', unsafe_allow_html=True)
+
+    # ── Liste ──
+    if df.empty:
+        st.markdown('<div class="pm-empty">Aucun produit dans le catalogue pour l’instant</div>', unsafe_allow_html=True)
+        return
+
+    for cat in sorted(df["categorie"].dropna().unique()):
+        st.markdown(f'<div class="section-label">{cat}</div>', unsafe_allow_html=True)
+        bloc = df[df["categorie"] == cat]
+
+        for _, row in bloc.iterrows():
+            nom = row["nom"]
+            is_editing = st.session_state.pm_editing == nom
+            is_confirming = st.session_state.pm_confirm_delete == nom
+
+            st.markdown(f"""
+            <div class="pm-card">
+              <div class="pm-name">{nom}</div>
+              <div class="pm-meta">{row.get('fournisseur') or '—'} · {row.get('unite') or '—'} · seuil {int(row.get('seuil_alerte') or 0)}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            if is_confirming:
+                st.markdown(f'<div class="box-ko"><strong>Supprimer « {nom} » ?</strong><p>Le produit et son historique de stock seront définitivement retirés.</p></div>', unsafe_allow_html=True)
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    if st.button("Confirmer la suppression", key=f"delconfirm_{nom}", use_container_width=True):
+                        delete_produit(nom)
+                        st.session_state.pm_confirm_delete = None
+                        st.success(f"« {nom} » supprimé.")
+                        st.rerun()
+                with cc2:
+                    if st.button("Annuler", key=f"delcancel_{nom}", use_container_width=True):
+                        st.session_state.pm_confirm_delete = None
+                        st.rerun()
+            elif is_editing:
+                with st.container(border=True):
+                    data = _form_produit(f"edit_{nom}", defaults=row.to_dict())
+                    ec1, ec2 = st.columns(2)
+                    with ec1:
+                        if st.button("Enregistrer", key=f"savedit_{nom}", use_container_width=True):
+                            if not data["nom"] or not data["categorie"]:
+                                st.error("Le nom et la catégorie sont obligatoires.")
+                            else:
+                                update_produit(nom, data["nom"], data["categorie"], data["fournisseur"],
+                                               data["unite"], data["seuil_alerte"])
+                                st.session_state.pm_editing = None
+                                st.success("Produit mis à jour.")
+                                st.rerun()
+                    with ec2:
+                        if st.button("Annuler", key=f"editcancel_{nom}", use_container_width=True):
+                            st.session_state.pm_editing = None
+                            st.rerun()
+            else:
+                b1, b2 = st.columns(2)
+                with b1:
+                    if st.button("Modifier", key=f"edit_{nom}", use_container_width=True):
+                        st.session_state.pm_editing = nom
+                        st.rerun()
+                with b2:
+                    if st.button("Supprimer", key=f"del_{nom}", use_container_width=True):
+                        st.session_state.pm_confirm_delete = nom
+                        st.rerun()
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PAGE ADMIN
 # ═══════════════════════════════════════════════════════════════════════════════
 def page_admin():
@@ -806,11 +991,12 @@ else:
     # Tabs
     tab_labels = ["Stock", "Scanner", "Historique"]
     if st.session_state.role == "patron":
-        tab_labels.append("Admin")
+        tab_labels += ["Produits", "Admin"]
     tabs = st.tabs(tab_labels)
 
     with tabs[0]: page_stock()
     with tabs[1]: page_scanner()
     with tabs[2]: page_historique()
-    if st.session_state.role == "patron" and len(tabs) == 4:
-        with tabs[3]: page_admin()
+    if st.session_state.role == "patron" and len(tabs) == 5:
+        with tabs[3]: page_produits()
+        with tabs[4]: page_admin()
