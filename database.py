@@ -1,12 +1,15 @@
 import os
 import pandas as pd
+import streamlit as st
 from datetime import datetime
 from supabase import create_client
 
 # ── Connexion ──────────────────────────────────────────────────────────────────
+# Mise en cache : une seule connexion Supabase est créée par session,
+# au lieu d'en recréer une à chaque appel (c'était la cause n°1 de lenteur).
+@st.cache_resource(show_spinner=False)
 def get_client():
     try:
-        import streamlit as st
         url = st.secrets["SUPABASE_URL"]
         key = st.secrets["SUPABASE_KEY"]
     except Exception:
@@ -19,10 +22,19 @@ RESTAURANTS = ["Maïga Smash"]
 def init_db():
     pass  # Tables créées via SQL Editor Supabase
 
-# ── Lectures ───────────────────────────────────────────────────────────────────
+# ── Lectures (mises en cache 15s) ───────────────────────────────────────────────
+# Streamlit ré-exécute TOUS les onglets à chaque interaction, pas seulement
+# celui affiché : sans cache, un simple clic +/- déclenchait 6-8 requêtes
+# Supabase invisibles. Le cache évite de refaire ces lectures en boucle ;
+# les fonctions d'écriture ci-dessous invalident le cache concerné pour que
+# les données restent toujours à jour après une modification.
+@st.cache_data(ttl=15, show_spinner=False)
 def get_stocks(restaurant=None):
     sb = get_client()
-    stocks = sb.table("stocks").select("*").execute().data
+    stocks_q = sb.table("stocks").select("*")
+    if restaurant:
+        stocks_q = stocks_q.eq("restaurant", restaurant)
+    stocks = stocks_q.execute().data
     produits = sb.table("produits").select("*").execute().data
 
     df_s = pd.DataFrame(stocks)
@@ -35,11 +47,9 @@ def get_stocks(restaurant=None):
     df = df[["restaurant", "produit", "quantite", "date_maj",
              "categorie", "fournisseur", "unite", "seuil_alerte"]]
 
-    if restaurant:
-        df = df[df["restaurant"] == restaurant]
-
     return df.sort_values(["categorie", "produit"]).reset_index(drop=True)
 
+@st.cache_data(ttl=15, show_spinner=False)
 def get_historique(n_jours=30):
     sb = get_client()
     rows = sb.table("historique").select("*").order("date", desc=True).limit(200).execute().data
@@ -50,6 +60,7 @@ def get_produit_by_barcode(code_barres):
     res = sb.table("produits").select("nom").eq("code_barres", code_barres).execute()
     return res.data[0]["nom"] if res.data else None
 
+@st.cache_data(ttl=15, show_spinner=False)
 def get_all_produits():
     """Catalogue complet des produits (indépendant du stock par restaurant)."""
     sb = get_client()
@@ -58,6 +69,7 @@ def get_all_produits():
         return pd.DataFrame()
     return pd.DataFrame(rows).sort_values(["categorie", "nom"]).reset_index(drop=True)
 
+@st.cache_data(ttl=15, show_spinner=False)
 def get_categories():
     sb = get_client()
     rows = sb.table("produits").select("categorie").execute().data
@@ -66,6 +78,8 @@ def get_categories():
 def enregistrer_code_barres(produit_nom, code_barres):
     sb = get_client()
     sb.table("produits").update({"code_barres": code_barres}).eq("nom", produit_nom).execute()
+    get_stocks.clear()
+    get_all_produits.clear()
 
 # ── Gestion du catalogue produits ──────────────────────────────────────────────
 def produit_existe(nom):
@@ -92,6 +106,10 @@ def add_produit(nom, categorie, fournisseur, unite, seuil_alerte, quantite_initi
             "date_maj":   now
         }, on_conflict="restaurant,produit").execute()
 
+    get_stocks.clear()
+    get_all_produits.clear()
+    get_categories.clear()
+
 def update_produit(nom_original, nom, categorie, fournisseur, unite, seuil_alerte):
     sb = get_client()
     sb.table("produits").update({
@@ -106,10 +124,19 @@ def update_produit(nom_original, nom, categorie, fournisseur, unite, seuil_alert
         sb.table("stocks").update({"produit": nom}).eq("produit", nom_original).execute()
         sb.table("historique").update({"produit": nom}).eq("produit", nom_original).execute()
 
+    get_stocks.clear()
+    get_all_produits.clear()
+    get_categories.clear()
+    get_historique.clear()
+
 def delete_produit(nom):
     sb = get_client()
     sb.table("stocks").delete().eq("produit", nom).execute()
     sb.table("produits").delete().eq("nom", nom).execute()
+
+    get_stocks.clear()
+    get_all_produits.clear()
+    get_categories.clear()
 
 # ── Écriture stock ─────────────────────────────────────────────────────────────
 def update_stock(restaurant, produit, ancienne_qte, nouvelle_qte):
@@ -130,3 +157,6 @@ def update_stock(restaurant, produit, ancienne_qte, nouvelle_qte):
         "ancienne_qte": ancienne_qte,
         "nouvelle_qte": nouvelle_qte
     }).execute()
+
+    get_stocks.clear()
+    get_historique.clear()
