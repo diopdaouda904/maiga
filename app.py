@@ -6,6 +6,7 @@ Lancement : streamlit run app.py
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
+import threading
 from datetime import datetime
 
 from config import NOM_RESTO, COULEUR_PRINCIPALE, verifier_mdp
@@ -505,6 +506,7 @@ for k, v in {
     "connecte": False, "role": None,
     "restaurant": RESTAURANTS[0], "kpi_filter": None,
     "pm_show_add": False, "pm_editing": None, "pm_confirm_delete": None,
+    "stock_overrides": {},
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -534,12 +536,41 @@ def page_connexion():
             st.error("Mot de passe incorrect")
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# ÉCRITURE ASYNCHRONE (mise à jour optimiste)
+# ═══════════════════════════════════════════════════════════════════════════════
+def _write_stock_async(resto, produit, ancienne_qte, nouvelle_qte):
+    """Écrit dans Supabase en arrière-plan pour ne jamais bloquer l'affichage."""
+    threading.Thread(
+        target=update_stock, args=(resto, produit, ancienne_qte, nouvelle_qte), daemon=True
+    ).start()
+
+def _bump_qte(resto, produit, qte_actuelle, nouvelle_qte):
+    """Affiche le nouveau chiffre immédiatement, écrit en base derrière."""
+    st.session_state.stock_overrides.setdefault(resto, {})[produit] = nouvelle_qte
+    _write_stock_async(resto, produit, qte_actuelle, nouvelle_qte)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PAGE STOCK
 # ═══════════════════════════════════════════════════════════════════════════════
 def page_stock():
     resto     = st.session_state.restaurant
     df        = get_stocks(resto)
     kpi_filter = st.session_state.kpi_filter
+
+    # ── Réconciliation des mises à jour optimistes ──
+    # Tant que le cache Supabase n'a pas confirmé le nouveau chiffre, on affiche
+    # la valeur locale (instantanée). Dès que la vraie donnée rejoint l'override,
+    # on l'enlève — ça évite de rester bloqué sur une valeur locale périmée.
+    overrides = st.session_state.stock_overrides.setdefault(resto, {})
+    if overrides and not df.empty:
+        for prod in list(overrides.keys()):
+            real = df.loc[df["produit"] == prod, "quantite"]
+            if not real.empty and int(real.iloc[0]) == overrides[prod]:
+                del overrides[prod]
+        if overrides:
+            df = df.copy()
+            for prod, val in overrides.items():
+                df.loc[df["produit"] == prod, "quantite"] = val
 
     n_total   = len(df)
     n_alertes = int((df["quantite"] <= df["seuil_alerte"]).sum())
@@ -649,7 +680,7 @@ def page_stock():
             with c_m:
                 if st.button("−", key=f"m_{produit}", use_container_width=True):
                     if qte > 0:
-                        update_stock(resto, produit, qte, qte - 1)
+                        _bump_qte(resto, produit, qte, qte - 1)
                         st.rerun()
             with c_q:
                 st.markdown(f"""
@@ -659,7 +690,7 @@ def page_stock():
                 </div>""", unsafe_allow_html=True)
             with c_p:
                 if st.button("+", key=f"p_{produit}", use_container_width=True):
-                    update_stock(resto, produit, qte, qte + 1)
+                    _bump_qte(resto, produit, qte, qte + 1)
                     st.rerun()
 
             st.markdown("<hr class='prod-sep'>", unsafe_allow_html=True)
