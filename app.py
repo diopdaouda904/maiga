@@ -536,6 +536,35 @@ div:has(> button[key="save_new_produit"]) > button {{
   font-weight: 700 !important;
 }}
 
+/* ── Bouton "Saisir" (mode saisie directe) discret sous le chiffre ── */
+div[data-testid="column"]:has(button[key^="editqte_"]) .stButton > button {{
+  background: transparent !important;
+  border: 1px solid {BDR} !important;
+  color: {SUB} !important;
+  font-size: 0.65rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  height: 26px !important;
+  margin-top: 4px;
+}}
+div[data-testid="column"]:has(button[key^="editqte_"]) .stButton > button:hover {{
+  border-color: {ACC} !important;
+  color: {ACC} !important;
+}}
+/* ── Boutons Valider (✓) / Annuler (✕) en mode saisie ── */
+div[data-testid="column"]:has(button[key^="validqte_"]) .stButton > button {{
+  background: {ACC} !important;
+  border: none !important;
+  color: #0A0A0B !important;
+  font-weight: 700 !important;
+  height: 40px !important;
+}}
+div[data-testid="column"]:has(button[key^="annulqte_"]) .stButton > button {{
+  background: {SURF} !important;
+  border: 1px solid {BDR} !important;
+  height: 40px !important;
+}}
+
 /* ── Streamlit overrides ────────────────────────────────────────────────────── */
 .stRadio > div {{ gap: 0 !important; }}
 .stRadio [data-testid="stMarkdownContainer"] p {{ font-size: 0.82rem; }}
@@ -552,6 +581,7 @@ for k, v in {
     "pm_show_add": False, "pm_editing": None, "pm_confirm_delete": None,
     "stock_overrides": {},
     "cookie_checked": False,
+    "edit_qte_produit": None,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -677,25 +707,9 @@ def page_stock():
         icone = ICO_WARN
         st.markdown(f'<div class="filter-badge">{icone}&nbsp;{label} — touchez à nouveau pour annuler</div>', unsafe_allow_html=True)
 
-    # ── Recherche + suggestions ──
-    recherche = st.text_input("", placeholder="Rechercher un produit...", key="search", label_visibility="collapsed")
-
-    if recherche and len(recherche) >= 2:
-        suggestions = df[df["produit"].str.contains(recherche, case=False, na=False)].head(6)
-        if not suggestions.empty:
-            html = '<div class="sugg-box">'
-            for _, s in suggestions.iterrows():
-                qte   = int(s["quantite"])
-                seuil = int(s["seuil_alerte"])
-                cls   = "prod-dngr" if qte == 0 else ("prod-warn" if qte <= seuil else "prod-ok")
-                html += f"""
-                <div class="sugg-item">
-                  <div><div class="sugg-name">{s['produit']}</div>
-                       <div class="sugg-cat">{s['categorie']}</div></div>
-                  <span class="sugg-qty {cls}">{qte} <span style="font-size:0.62rem;color:{SUB};font-weight:400">{s['unite']}</span></span>
-                </div>"""
-            html += '</div>'
-            st.markdown(html, unsafe_allow_html=True)
+    # ── Recherche ──
+    recherche = st.text_input("Rechercher", placeholder="Rechercher un produit...",
+                                key="search", label_visibility="collapsed")
 
     # ── Filtre catégorie ──
     categories = ["Toutes les catégories"] + sorted(df["categorie"].unique().tolist())
@@ -712,6 +726,11 @@ def page_stock():
     elif kpi_filter == "alerte":
         df_f = df_f[(df_f["quantite"] > 0) & (df_f["quantite"] <= df_f["seuil_alerte"])]
 
+    # Compteur de résultats : feedback visible quand on cherche/filtre
+    if recherche or cat_active != "Toutes les catégories" or kpi_filter:
+        n_res = len(df_f)
+        st.markdown(f'<div style="font-size:0.7rem;color:{SUB};padding:6px 0 4px;text-transform:uppercase;letter-spacing:0.4px;">{n_res} résultat{"s" if n_res != 1 else ""}</div>', unsafe_allow_html=True)
+
     if df_f.empty:
         st.markdown(f'<div style="text-align:center;color:{SUB};padding:32px 0;font-size:0.85rem;">Aucun produit trouvé</div>', unsafe_allow_html=True)
         return
@@ -727,6 +746,7 @@ def page_stock():
             unite   = row["unite"]
             produit = row["produit"]
             cls     = "prod-dngr" if qte == 0 else ("prod-warn" if qte <= seuil else "prod-ok")
+            is_editing_qte = st.session_state.edit_qte_produit == produit
 
             st.markdown(f"""
             <div style="padding: 8px 0 4px;">
@@ -735,22 +755,46 @@ def page_stock():
             </div>
             """, unsafe_allow_html=True)
 
-            c_m, c_q, c_p = st.columns([1, 2, 1])
-            with c_m:
-                if st.button("−", key=f"m_{produit}", use_container_width=True):
-                    if qte > 0:
-                        _bump_qte(resto, produit, qte, qte - 1)
+            if is_editing_qte:
+                # Mode saisie directe (grosses livraisons, inventaire physique)
+                st.markdown(f'<div style="font-size:0.68rem;color:{SUB};margin-top:4px;text-transform:uppercase;letter-spacing:0.4px;">Nouvelle quantité en {unite}</div>', unsafe_allow_html=True)
+                ci, cv, ca = st.columns([3, 1, 1])
+                with ci:
+                    nouvelle = st.number_input("", min_value=0, value=qte, step=1,
+                                                key=f"newqte_{produit}", label_visibility="collapsed")
+                with cv:
+                    if st.button("✓", key=f"validqte_{produit}", use_container_width=True):
+                        n = int(nouvelle)
+                        if n != qte:
+                            _bump_qte(resto, produit, qte, n)
+                        st.session_state.edit_qte_produit = None
                         st.rerun()
-            with c_q:
-                st.markdown(f"""
-                <div style="text-align:center; padding:4px 0;">
-                  <div class="prod-qty {cls}">{qte}</div>
-                  <div class="prod-unit">{unite}</div>
-                </div>""", unsafe_allow_html=True)
-            with c_p:
-                if st.button("+", key=f"p_{produit}", use_container_width=True):
-                    _bump_qte(resto, produit, qte, qte + 1)
-                    st.rerun()
+                with ca:
+                    if st.button("✕", key=f"annulqte_{produit}", use_container_width=True):
+                        st.session_state.edit_qte_produit = None
+                        st.rerun()
+            else:
+                # Mode affichage + boutons rapides
+                c_m, c_q, c_p = st.columns([1, 2, 1])
+                with c_m:
+                    if st.button("−", key=f"m_{produit}", use_container_width=True):
+                        if qte > 0:
+                            _bump_qte(resto, produit, qte, qte - 1)
+                            st.rerun()
+                with c_q:
+                    st.markdown(f"""
+                    <div style="text-align:center; padding:4px 0;">
+                      <div class="prod-qty {cls}">{qte}</div>
+                      <div class="prod-unit">{unite}</div>
+                    </div>""", unsafe_allow_html=True)
+                    # Petit bouton "saisir directement" sous le chiffre
+                    if st.button("Saisir", key=f"editqte_{produit}", use_container_width=True):
+                        st.session_state.edit_qte_produit = produit
+                        st.rerun()
+                with c_p:
+                    if st.button("+", key=f"p_{produit}", use_container_width=True):
+                        _bump_qte(resto, produit, qte, qte + 1)
+                        st.rerun()
 
             st.markdown("<hr class='prod-sep'>", unsafe_allow_html=True)
 
