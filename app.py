@@ -7,7 +7,11 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
 import threading
+import hmac
+import hashlib
+import time
 from datetime import datetime
+from streamlit_cookies_controller import CookieController
 
 from config import NOM_RESTO, COULEUR_PRINCIPALE, verifier_mdp
 from database import (
@@ -25,6 +29,46 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed",
 )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SESSION PERSISTANTE (cookie "rester connecté" — 7 jours)
+# ═══════════════════════════════════════════════════════════════════════════════
+# On stocke un jeton signé côté navigateur. Comme les cookies sont visibles par
+# l'utilisateur, on ne stocke JAMAIS le mot de passe : juste le rôle + une date
+# d'expiration + une signature HMAC pour empêcher toute falsification.
+COOKIE_NAME    = "maiga_session"
+COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 jours en secondes
+
+def _cookie_secret():
+    try:
+        return st.secrets["COOKIE_SECRET"]
+    except Exception:
+        # Fallback local (dev). En prod, définir COOKIE_SECRET dans les secrets Streamlit.
+        return "maiga-dev-secret-a-remplacer-en-prod"
+
+def _sign(payload: str) -> str:
+    return hmac.new(_cookie_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
+
+def _make_token(role: str) -> str:
+    exp = int(time.time()) + COOKIE_MAX_AGE
+    payload = f"{role}|{exp}"
+    return f"{payload}|{_sign(payload)}"
+
+def _read_token(token: str):
+    """Retourne le rôle si le jeton est valide et non expiré, sinon None."""
+    if not token or token.count("|") != 2:
+        return None
+    role, exp_str, sig = token.split("|")
+    if _sign(f"{role}|{exp_str}") != sig:
+        return None
+    try:
+        if int(exp_str) < int(time.time()):
+            return None
+    except ValueError:
+        return None
+    return role if role in ("employe", "patron") else None
+
+cookies = CookieController()
 
 # ── Palette pro ───────────────────────────────────────────────────────────────
 # Accent piloté depuis config.py (source unique de la marque) + neutres resserrés
@@ -507,9 +551,20 @@ for k, v in {
     "restaurant": RESTAURANTS[0], "kpi_filter": None,
     "pm_show_add": False, "pm_editing": None, "pm_confirm_delete": None,
     "stock_overrides": {},
+    "cookie_checked": False,
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ── Auto-reconnexion via cookie (une seule fois par session) ──
+if not st.session_state.connecte and not st.session_state.cookie_checked:
+    st.session_state.cookie_checked = True
+    token = cookies.get(COOKIE_NAME)
+    if token:
+        role = _read_token(token)
+        if role:
+            st.session_state.connecte = True
+            st.session_state.role = role
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONNEXION
@@ -525,12 +580,16 @@ def page_connexion():
 
     role = st.selectbox("Rôle", ["Employé", "Patron"])
     mdp  = st.text_input("Mot de passe", type="password", placeholder="••••••••")
+    rester = st.checkbox("Rester connecté pendant 7 jours", value=True, key="stay_logged")
 
     if st.button("Se connecter", key="login_btn", use_container_width=True):
         role_key = "employe" if role == "Employé" else "patron"
         if verifier_mdp(mdp, role_key):
             st.session_state.connecte = True
             st.session_state.role = role_key
+            if rester:
+                cookies.set(COOKIE_NAME, _make_token(role_key),
+                            max_age=COOKIE_MAX_AGE, secure=True, same_site="lax")
             st.rerun()
         else:
             st.error("Mot de passe incorrect")
@@ -1017,6 +1076,10 @@ else:
         if st.button("Quitter", key="logout"):
             st.session_state.connecte = False
             st.session_state.role = None
+            try:
+                cookies.remove(COOKIE_NAME)
+            except Exception:
+                pass
             st.rerun()
 
     # Tabs
