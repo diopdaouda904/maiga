@@ -12,6 +12,7 @@ import hashlib
 import time
 from datetime import datetime, timedelta
 from streamlit_cookies_controller import CookieController
+from st_keyup import st_keyup
 
 from config import NOM_RESTO, COULEUR_PRINCIPALE, verifier_mdp
 from database import (
@@ -701,9 +702,9 @@ def page_stock():
         icone = ICO_WARN
         st.markdown(f'<div class="filter-badge">{icone}&nbsp;{label} — touchez à nouveau pour annuler</div>', unsafe_allow_html=True)
 
-    # ── Recherche ──
-    recherche = st.text_input("Rechercher", placeholder="Rechercher un produit...",
-                                key="search", label_visibility="collapsed")
+    # ── Recherche (filtrage en direct, sans appuyer sur Entrée) ──
+    recherche = st_keyup("Rechercher", placeholder="Rechercher un produit...",
+                           key="search", debounce=200, label_visibility="collapsed")
 
     # ── Filtre catégorie ──
     categories = ["Toutes les catégories"] + sorted(df["categorie"].unique().tolist())
